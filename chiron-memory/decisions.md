@@ -1,6 +1,6 @@
 # decision
 
-A technical decision that was made and WHY (which alternatives were discarded).
+A choice made and the reasoning behind it — the path taken over the alternatives.
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -142,6 +142,14 @@ What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and th
 
 What: `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on each), then spends remaining points one at a time on a uniformly random non-maxed stat until the budget is exhausted · Why: satisfies the product intent that "different amounts of levels per skill stat are expected" while guaranteeing the full 16-point budget is always spent and no stat exceeds its max · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-8 -->
 
+## The client posts match results to the backend best-effort: it reads a bearer token from l…
+
+What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
+
+## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
+
+What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
+
 ## Shot's config `range` stat defaults to 3000 (≥ arena diagonal)
 
 What: Shot's config `range` stat defaults to 3000 (≥ arena diagonal) · Why: README specs a range stat but the intent is bullets fly until they hit something in the current arena, not that they vanish mid-flight; range is kept as a per-level stat for future tuning but defaulted so it never cuts a bullet short · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-0 -->
@@ -173,11 +181,3 @@ What: Slash's secondary swing is bound to the right mouse button, so input.ts su
 ## Bash is bound to key `E`, not Ctrl
 
 What: Bash is bound to key `E`, not Ctrl · Why: Ctrl+W/S/D fire browser shortcuts mid-fight; the same hazard exists for Cmd (used for Shot) on macOS, but Alt is the safe binding of the two names the README gives · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
-
-## The client posts match results to the backend best-effort: it reads a bearer token from l…
-
-What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
-
-## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
-
-What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->

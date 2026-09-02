@@ -1,6 +1,6 @@
 # architecture
 
-A structural/design choice: layers, module boundaries, where things live.
+How the system is put together — layers, boundaries, and how data flows.
 
 ## `Match` (src/sim/match.ts) owns a game's loadouts; a `World` is one round and always carries a loadout per player
 
@@ -82,6 +82,34 @@ What: A match (`src/sim/match.ts`), not the world/round, owns loadouts — `crea
 
 What: `Loadout` is a flat "skill.stat" → level map using 1-based levels (level 1 = the enforced minimum) · Why: 1-based levels match the backend's reserved `configured_stats` map format, keeping the client representation aligned with the future backend contract · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-6 -->
 
+## `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match en…
+
+What: `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match end but only increments `victories` when the reporting player won · Why: — · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-12 -->
+
+## Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus…
+
+What: Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus left/right edge points at its radius — against obstacles via `segmentIntersectsRect` (Liang–Barsky), rather than testing only the center-to-center line. · Why: a pure center-line test flickers a rival visible/invisible right at an obstacle corner even though most of their body is still hidden. · Where: src/sim/vision.ts, src/sim/geometry.ts (segmentIntersectsRect) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-4 -->
+
+## The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same Pla…
+
+What: The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same PlayerInput a human emits (move vector, aim, skill triggers), fed through the identical stepWorld path as the local player. · Why: routing NPC actions through the shared simulation rules (cooldown gates in triggerSkills, speed clamp in movePlayer) makes it structurally impossible for the NPC to exceed cooldowns or move speed — no separate validation logic needed. · Where: src/sim/npc.ts, wired per-tick in src/game.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-0 -->
+
+## Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, p…
+
+What: Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, plus phase/roundsWon/matchWinnerId state) lives as pure functions added to src/sim/match.ts rather than in game.ts or a new module. · Why: keeps round/match progression testable without DOM/timers, consistent with the project's existing pure-sim architecture. · Where: src/sim/match.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-1 -->
+
+## A round does not advance the instant a player dies — game.ts freezes on the death frame,…
+
+What: A round does not advance the instant a player dies — game.ts freezes on the death frame, waits a fixed intermission, then starts the next round (and freezes entirely once phase becomes matchOver). · Why: gives the player a readable beat to see who won the round/match before the next round or a game-over state appears, instead of an instant jarring reset. · Where: src/game.ts (advance/nextRound flow). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-10 -->
+
+## Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipp…
+
+What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipping) plus vision.ts canSee(from, target, obstacles), which samples the target's silhouette (center ± radius edges), not just the center point. · Why: sampling only the center line would flicker/misjudge visibility when a circle is partially exposed at an obstacle's corner; silhouette sampling makes an actor fully behind cover reliably hidden. · Where: src/sim/geometry.ts, src/sim/vision.ts; consumed by renderer.draw(world, fx, viewerId). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-3 -->
+
+## The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from…
+
+What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->
+
 ## PlayerInput was extended with `aim` (an arena-space point) and `skills` (one-shot per-tic…
 
 What: PlayerInput was extended with `aim` (an arena-space point) and `skills` (one-shot per-tick trigger flags); World was extended with `projectiles` and per-tick `events` arrays to carry skill effects (hits, blocks, cone flashes) out of the sim · Why: — · Where: src/sim/world.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-16 -->
@@ -109,23 +137,3 @@ What: skills/cooldowns.ts is the single cooldown gate for all five skills — a 
 ## During its 100ms travel a dashing player is excluded from other players' collision checks…
 
 What: During its 100ms travel a dashing player is excluded from other players' collision checks, so Dash passes over an enemy instead of shoving it · Why: — · Where: src/sim/skills/dash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-9 -->
-
-## The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same Pla…
-
-What: The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same PlayerInput a human emits (move vector, aim, skill triggers), fed through the identical stepWorld path as the local player. · Why: routing NPC actions through the shared simulation rules (cooldown gates in triggerSkills, speed clamp in movePlayer) makes it structurally impossible for the NPC to exceed cooldowns or move speed — no separate validation logic needed. · Where: src/sim/npc.ts, wired per-tick in src/game.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-0 -->
-
-## Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, p…
-
-What: Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, plus phase/roundsWon/matchWinnerId state) lives as pure functions added to src/sim/match.ts rather than in game.ts or a new module. · Why: keeps round/match progression testable without DOM/timers, consistent with the project's existing pure-sim architecture. · Where: src/sim/match.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-1 -->
-
-## A round does not advance the instant a player dies — game.ts freezes on the death frame,…
-
-What: A round does not advance the instant a player dies — game.ts freezes on the death frame, waits a fixed intermission, then starts the next round (and freezes entirely once phase becomes matchOver). · Why: gives the player a readable beat to see who won the round/match before the next round or a game-over state appears, instead of an instant jarring reset. · Where: src/game.ts (advance/nextRound flow). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-10 -->
-
-## Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipp…
-
-What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipping) plus vision.ts canSee(from, target, obstacles), which samples the target's silhouette (center ± radius edges), not just the center point. · Why: sampling only the center line would flicker/misjudge visibility when a circle is partially exposed at an obstacle's corner; silhouette sampling makes an actor fully behind cover reliably hidden. · Where: src/sim/geometry.ts, src/sim/vision.ts; consumed by renderer.draw(world, fx, viewerId). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-3 -->
-
-## The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from…
-
-What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->

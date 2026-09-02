@@ -1,6 +1,6 @@
 # convention
 
-A rule, pattern or convention this project follows (naming, formats, repeated approach).
+A rule the codebase follows — naming, patterns, and where things live.
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -78,6 +78,30 @@ What: `statValue()` is the single bridge function that converts a loadout's 1-ba
 
 What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
 
+## The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status…
+
+What: The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status line (e.g. "Match won!") driven by `Match.roundsWon`/`phase`/`matchWinnerId` · Why: — · Where: src/main.ts, index.html, src/style.css <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-13 -->
+
+## Fog of war in the renderer only hides an occluded rival's body, direction indicator, and…
+
+What: Fog of war in the renderer only hides an occluded rival's body, direction indicator, and dash trail; in-flight projectiles/bullets stay visible even when they pass behind where an obstacle would occlude a player. · Why: — · Where: src/renderer.ts (draw(world, fx, viewerId)) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
+
+## `validateConfig` enforces a feasibility check that the point budget is between the number…
+
+What: `validateConfig` enforces a feasibility check that the point budget is between the number of leveled stats and the sum of their max levels (10 ≤ points ≤ 38 currently) · Why: guarantees any config change still allows a valid 1-per-stat minimum build without exceeding total max levels · Where: src/config.ts validateConfig <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-2 -->
+
+## POST /profile/record always increments games_played on a valid authenticated call, but on…
+
+What: POST /profile/record always increments games_played on a valid authenticated call, but only increments victories when the request body's won field is true; unauthenticated calls get 401. · Why: mirrors the profile record semantics (a loss still counts as a game played) and keeps the route behind auth even though it trusts client-reported outcomes in v1. · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-11 -->
+
+## A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death…
+
+What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
+
+## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
+
+What: NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random interval, with occasional idle pauses) while skill use is pressing one currently-ready skill at random on a random cadence. · Why: gives an NPC that 'randomly moves and uses skills' per the work order's intent, distinct from a scripted or optimal opponent. · Where: src/sim/npc.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-9 -->
+
 ## Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms,…
 
 What: Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms, i.e. 1s to cross the map) and is swept each tick against edges, obstacles and living players excluding its owner; the first contact stops it · Why: — · Where: src/sim/skills/shot.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-12 -->
@@ -101,19 +125,3 @@ What: Slash's and Bash's cones use the player centre as the apex, with the skill
 ## Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is p…
 
 What: Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is pressed; Shield instead keeps following the live pointer for the whole time it's active · Why: — · Where: src/sim/skills/*.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-5 -->
-
-## POST /profile/record always increments games_played on a valid authenticated call, but on…
-
-What: POST /profile/record always increments games_played on a valid authenticated call, but only increments victories when the request body's won field is true; unauthenticated calls get 401. · Why: mirrors the profile record semantics (a loss still counts as a game played) and keeps the route behind auth even though it trusts client-reported outcomes in v1. · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-11 -->
-
-## A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death…
-
-What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
-
-## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
-
-What: NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random interval, with occasional idle pauses) while skill use is pressing one currently-ready skill at random on a random cadence. · Why: gives an NPC that 'randomly moves and uses skills' per the work order's intent, distinct from a scripted or optimal opponent. · Where: src/sim/npc.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-9 -->
-
-## `validateConfig` enforces a feasibility check that the point budget is between the number…
-
-What: `validateConfig` enforces a feasibility check that the point budget is between the number of leveled stats and the sum of their max levels (10 ≤ points ≤ 38 currently) · Why: guarantees any config change still allows a valid 1-per-stat minimum build without exceeding total max levels · Where: src/config.ts validateConfig <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-2 -->
