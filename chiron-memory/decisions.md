@@ -18,6 +18,14 @@ What: Light backend (accounts/auth) built as new Go module in `light-backend/`, 
 
 What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
 
+## Victories/games_played change only via UserStore.IncrementRecord, which has no HTTP endpoint in v1
+
+What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
+
+## configured_stats is reserved on the User model as map[string]int, omitempty, never written in v1
+
+What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
+
 ## Every feel-affecting number lives in `src/config.ts` (`CONFIG: GameConfig`); simulation functions take a `GameConfig` parameter defaulting to `CONFIG`
 
 What: Every feel-affecting number (arena size, spawn points, obstacle generation, player radius/speed/HP/heal, sim tick, per-skill stat tables, best-of options) lives in `src/config.ts` as one typed `CONFIG` object, and every simulation function takes a `GameConfig` parameter defaulting to `CONFIG` · Why: v1 is a tuning instrument — one edit must change behaviour everywhere; the injected parameter lets tests (and a future tuning UI) override values without touching the module · Where: src/config.ts, src/sim/*.ts (`cfg: GameConfig = CONFIG` on each function), src/arena.ts re-exports `ARENA_SIZE = CONFIG.arena.size` · Learned: `validateConfig()` runs at startup and in `createWorld`; it throws on fractional HP/heal/damage or impassable obstacle gaps so a mistyped value fails loudly instead of leaking a fractional HP mid-fight.

@@ -32,6 +32,8 @@ func NewRouter(users store.UserStore, tokens *auth.TokenIssuer) *gin.Engine {
 	protected.Use(middleware.AuthRequired(tokens, users))
 	{
 		protected.GET("/me", h.Me)
+		protected.GET("/profile", h.GetProfile)
+		protected.PATCH("/profile", h.UpdateProfile)
 	}
 
 	return r

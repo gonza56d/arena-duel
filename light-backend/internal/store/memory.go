@@ -12,7 +12,7 @@ import (
 
 // MemoryStore is an in-memory UserStore for tests. It is safe for concurrent
 // use and mirrors the semantics of MongoStore (unique email, assigned id and
-// timestamps).
+// timestamps, partial profile updates, atomic record increments).
 type MemoryStore struct {
 	mu      sync.RWMutex
 	byID    map[string]*models.User
@@ -73,4 +73,44 @@ func (s *MemoryStore) FindByID(ctx context.Context, id string) (*models.User, er
 	}
 	cp := *u
 	return &cp, nil
+}
+
+func (s *MemoryStore) UpdateProfile(ctx context.Context, id string, upd ProfileUpdate) (*models.User, error) {
+	if upd.IsEmpty() {
+		return nil, ErrEmptyUpdate
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	u, ok := s.byID[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	if upd.PlayerName != nil {
+		u.PlayerName = *upd.PlayerName
+	}
+	if upd.Color != nil {
+		u.Color = *upd.Color
+	}
+	u.UpdatedAt = time.Now().UTC()
+
+	cp := *u
+	return &cp, nil
+}
+
+func (s *MemoryStore) IncrementRecord(ctx context.Context, id string, won bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	u, ok := s.byID[id]
+	if !ok {
+		return ErrNotFound
+	}
+	u.GamesPlayed++
+	if won {
+		u.Victories++
+	}
+	u.UpdatedAt = time.Now().UTC()
+	return nil
 }
