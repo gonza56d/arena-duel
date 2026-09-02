@@ -2,6 +2,10 @@
 
 A rule, pattern or convention this project follows (naming, formats, repeated approach).
 
+## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
+
+What: Build rule checks (missing/unknown stat, non-integer, below level 1, above max, spend ≠ `build.points` with over/under-by) are collected into one `LoadoutValidation` rather than failing on the first, mirroring `validateConfig`'s error list · Why: the same check guards v1's generated builds and will validate v2's manual builder, where a UI wants to show every problem at once · Where: src/sim/loadout.ts, src/sim/loadout.test.ts.
+
 ## No gameplay literal outside `src/config.ts`; units are arena units / milliseconds / degrees; level arrays are 0-indexed
 
 What: Gameplay numbers never appear as literals outside `src/config.ts` — other modules read `CONFIG` (e.g. `ARENA_SIZE` in src/arena.ts is a re-export, the HUD reads `CONFIG.player.maxHp`). Distances are arena units, times milliseconds, angles degrees; skill level arrays are indexed from 0 (= "level 1" in the design doc) · Why: the whole point of the config module is that a tuning pass touches one file · Where: src/config.ts (header comment states the rules).
@@ -54,9 +58,20 @@ What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not ju
 
 What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
 
+## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
+
+What: `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.points` ≤ sum of each stat's max level · Why: guarantees a valid 16-point loadout is always constructible (every stat startable at 1, budget never unspendable or overflowing) before the generator even runs · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-5 -->
+
+## `statValue()` is the single bridge function that converts a loadout's 1-based level into…
+
+What: `statValue()` is the single bridge function that converts a loadout's 1-based level into the 0-indexed level-table lookup · Why/ · Why: — · Where: src/sim/loadout.ts · Learned: keeps the 1-based/0-indexed conversion in one place instead of scattering `-1` offsets across the codebase <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-7 -->
+
+## `validateLoadout()` returns every violation it finds, not just the first
+
+What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
 ## Skill tests drive the sim only through `createWorld` + `stepWorld` with explicit `PlayerInput` objects; geometry set up by writing `players[i].pos` directly
 
-What: every skill test builds a world with obstacle generation disabled (`countMin/Max: 0`), places players by assigning `pos`, aims via one `stepWorld` with `aim`, then presses via `skills` flags and steps ticks; helpers like `timeToHit` return elapsed ms · Why: exercises the real tick order (aim → cooldown → trigger → move → offense → shields) instead of calling `trigger*` directly, so ordering bugs show up · Where: src/sim/skills/*.test.ts · Learned: `world.events` is cleared every tick, so assert on events *before* stepping again; `tsconfig` targets ES2020, so `Array.prototype.at` is unavailable in tests.
+What: every skill test builds a world with obstacle generation disabled (`countMin/Max: 0`) and explicit `loadouts` from `testLoadout(overrides, filler)` (pins the levels under test, pours the remaining points into stats the test does not observe — `createWorld` rolls random builds otherwise), places players by assigning `pos`, aims via one `stepWorld` with `aim`, then presses via `skills` flags and steps ticks; helpers like `timeToHit` return elapsed ms · Why: exercises the real tick order (aim → cooldown → trigger → move → offense → shields) instead of calling `trigger*` directly, so ordering bugs show up · Where: src/sim/skills/*.test.ts · Learned: `world.events` is cleared every tick, so assert on events *before* stepping again; `tsconfig` targets ES2020, so `Array.prototype.at` is unavailable in tests.
 
 ## Renderer-only constants (colours, `FX_LINGER_MS`) live in src/renderer.ts; the game loop collects `world.events` into a `TimedEvent[]` for fades
 

@@ -2,6 +2,18 @@
 
 A technical decision that was made and WHY (which alternatives were discarded).
 
+## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
+
+What: `StatId` (`"dash.cooldownMs"`, `"slash.damage"`, …) is a mapped type over `SkillsConfig` that keeps only `Levels`-typed fields, and `leveledStatIds(cfg)` is its runtime twin (any array-valued skill field). Bash, whose values are plain numbers, contributes no stats and costs nothing; Shot range is included even though its table is flat today · Why: the design doc says fixed skill stats don't count and every other stat has levels — encoding that in the field type means adding or fixing a stat is one config edit with no list to keep in sync; keeping Shot range spendable was an explicit user call (points there are a no-op until the table is tuned) · Where: src/config.ts (`StatId`, `BuildConfig`, `leveledStatIds`, `statLevels`), src/config.test.ts (`Record<StatId, true>` exhaustiveness check) · Learned: the README's "26 possible stats" does not match the tables (10 stats, 38 total levels, 28 upgrade steps); the generator and `validateConfig` use the tables, not the 26.
+
+## Loadout levels are 1-based ("level 1 is blocked and counts as 1 spent"); config tables stay 0-indexed and `statValue` is the only bridge
+
+What: `Loadout = Record<StatId, number>` holds 1-based levels — the same flat "skill.stat → level" shape as the backend's reserved `configured_stats` map — and `statValue(loadout, id, cfg)` returns `table[level - 1]`, throwing on a level outside `[1, table.length]`. A valid build spends exactly `build.points` (16) where spend = Σ levels, so the level-1 floor of 10 stats already costs 10 and 6 points are free · Why: the doc and the future v2 builder UI think in "level 1…4"; the tables follow the existing 0-indexed convention, so one function owns the off-by-one instead of every skill · Where: src/sim/loadout.ts (`statValue`, `loadoutSpend`, `validateLoadout`, `generateLoadout`) · Learned: combat/skills code must read stats via `statValue(player.loadout, id)` — never index `cfg.skills.x.y[...]` directly — so a hand-built v2 loadout drops in without touching combat.
+
+## Random builds: level-1 floor, then spend each remaining point on a uniformly random non-maxed stat, driven by the match seed
+
+What: `generateLoadout(rng, cfg)` starts every leveled stat at 1 and spends the remaining points one at a time on a uniformly random stat that is below its max; the result is asserted with `validateLoadout`. `validateConfig` guarantees feasibility (`statCount ≤ build.points ≤ Σ max levels`) · Why: simplest generator that always yields a valid build with uneven level spreads ("different amounts of levels per stat are expected"); it is deterministic per RNG state so a match seed reproduces both builds · Where: src/sim/loadout.ts, src/sim/loadout.test.ts · Learned: uniform-per-point is not uniform over all valid builds — fine for v1's random loadouts, but don't assume it if a "random build" button in v2 needs a specific distribution.
+
 ## Every feel-affecting number lives in `src/config.ts` (`CONFIG: GameConfig`); simulation functions take a `GameConfig` parameter defaulting to `CONFIG`
 
 What: Every feel-affecting number (arena size, spawn points, obstacle generation, player radius/speed/HP/heal, sim tick, per-skill stat tables, best-of options) lives in `src/config.ts` as one typed `CONFIG` object, and every simulation function takes a `GameConfig` parameter defaulting to `CONFIG` · Why: v1 is a tuning instrument — one edit must change behaviour everywhere; the injected parameter lets tests (and a future tuning UI) override values without touching the module · Where: src/config.ts, src/sim/*.ts (`cfg: GameConfig = CONFIG` on each function), src/arena.ts re-exports `ARENA_SIZE = CONFIG.arena.size` · Learned: `validateConfig()` runs at startup and in `createWorld`; it throws on fractional HP/heal/damage or impassable obstacle gaps so a mistyped value fails loudly instead of leaking a fractional HP mid-fight.
@@ -38,14 +50,6 @@ What: Light backend (accounts/auth) built as new Go module in `light-backend/`, 
 
 What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
 
-## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
-
-What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
-
-## HP is not clamped at 0 when overkill damage is applied (e.g
-
-What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
-
 ## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
 
 What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
@@ -78,9 +82,36 @@ What: HP is not clamped at 0 when damage is applied — a killing blow can leave
 
 What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
 
-## Skill builds are a level index per *stat* (not per skill), resolved through `resolve*(levels, cfg)`; Bash has no levels
+## The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.…
 
-What: `SkillLevels` in src/sim/skills/stats.ts holds one 0-based level per levelled stat (dash.cooldown, dash.distance, slash.cooldown/range/area/damage, shot.cooldown/range/damage, shield.cooldown); `resolveDash/Slash/Shot/Shield(levels, cfg)` turn them into concrete numbers from `CONFIG.skills`, throwing on an out-of-range index; Bash reads `CONFIG.skills.bash` directly · Why: the design doc gives each stat its own level table with different lengths (Slash damage has 3 levels, range has 4), so "one level per skill" cannot express the 16-points-over-26-stats build · Where: src/sim/skills/stats.ts, `createWorld({ levels })`, `PlayerState.levels` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code.
+What: The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.statPointsPerPlayer`) · Why: v1 needs one data-driven source for the point budget so v2's manual builder can validate against the exact same number · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-0 -->
+
+## `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round…
+
+What: `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round seed derived from the match seed, while keeping the same two loadouts, capped at the match's best-of-N round count · Why: — · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-12 -->
+
+## A match defaults to best-of-3, and the client's left sidebar always displays both the loc…
+
+What: A match defaults to best-of-3, and the client's left sidebar always displays both the local player's and the rival's stat levels (not hidden behind debug tooling) · Why: — · Where: src/game.ts, src/main.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-13 -->
+
+## `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loa…
+
+What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loadouts — no scoring, win/loss state, or match-end detection is implemented · Why: this work order's scope was loadout generation and per-game reroll timing only, not win conditions · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-14 -->
+
+## `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on…
+
+What: `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on each), then spends remaining points one at a time on a uniformly random non-maxed stat until the budget is exhausted · Why: satisfies the product intent that "different amounts of levels per skill stat are expected" while guaranteeing the full 16-point budget is always spent and no stat exceeds its max · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-8 -->
+
+## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
+
+What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
+
+## HP is not clamped at 0 when overkill damage is applied (e.g
+
+What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
+## Skills read their numbers through `resolve*(loadout, cfg)` in src/sim/skills/stats.ts, which wraps `statValue`; Bash reads `CONFIG.skills.bash` directly
+
+What: `resolveDash/Slash/Shot/Shield(loadout, cfg)` gather one skill's numbers — leveled stats via `statValue(loadout, "skill.stat", cfg)` (1-based `Loadout` from src/sim/loadout.ts), fixed ones straight from the config — into a typed stats object; Bash has no leveled stats and reads `CONFIG.skills.bash` · Why: the skills work order first shipped its own 0-based `SkillLevels`, but the loadout work order landed the canonical `Loadout` (random 16-point builds per match, backend-shaped); merging kept one representation and one off-by-one bridge (`statValue`) while skill code keeps a single call per skill · Where: src/sim/skills/stats.ts, `PlayerState.loadout`, `createWorld({ loadouts })` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code; skill tests must pass explicit loadouts (`testLoadout` in src/sim/skills/loadout.testutil.ts) because `createWorld` rolls random builds otherwise.
 
 ## Cooldown is the only gate between skill uses; it is set at the trigger tick and first decremented on the next tick
 

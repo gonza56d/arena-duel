@@ -11,6 +11,10 @@
  *  - Numbers only describe *what* the game feels like; no logic lives here.
  *  - Units: distances in arena units, times in milliseconds, angles in degrees.
  *  - HP, damage and heal amounts MUST be integers (see `validateConfig`).
+ *  - A skill stat is *leveled* (spendable with build points) exactly when its
+ *    field is a `Levels` table; a plain number is a fixed value and costs
+ *    nothing. `StatId` and `leveledStatIds()` derive the spendable set from
+ *    that, so no separate list has to be kept in sync.
  *  - Simulation code receives a `GameConfig` as a parameter (defaulting to
  *    `CONFIG`) so tests and future tuning UIs can override values at runtime.
  */
@@ -78,10 +82,8 @@ export interface SimConfig {
 }
 
 export interface RoundsConfig {
-  /** Match formats offered: best of N rounds. */
+  /** Match formats offered: best of N rounds. The first entry is the default. */
   bestOfOptions: readonly number[];
-  /** Stat points each player distributes across skill levels. */
-  statPointsPerPlayer: number;
 }
 
 /* ---------------------------------------------------------------- skills -- */
@@ -162,11 +164,36 @@ export interface SkillsConfig {
   bash: BashConfig;
 }
 
+/* ---------------------------------------------------------------- build --- */
+
+/** Keys of `T` whose value is a level table. */
+type LevelKeys<T> = { [K in keyof T & string]: T[K] extends Levels ? K : never }[keyof T & string];
+
+/**
+ * Id of every leveled skill stat as `"skill.stat"` (e.g. `"slash.damage"`).
+ * Derived from the skill configs above: a stat exists here exactly when its
+ * field is a `Levels` table, so Bash (all fixed) contributes nothing. This is
+ * the key type of a player's loadout and of the backend's `configured_stats`.
+ */
+export type StatId = {
+  [S in keyof SkillsConfig & string]: `${S}.${LevelKeys<SkillsConfig[S]>}`;
+}[keyof SkillsConfig & string];
+
+export interface BuildConfig {
+  /**
+   * Stat points each player spends across skill levels. Level 1 of every
+   * leveled stat is mandatory and already counts as 1 spent, so a valid build
+   * spends exactly this many with every stat within [1, its table length].
+   */
+  points: number;
+}
+
 export interface GameConfig {
   arena: ArenaConfig;
   player: PlayerConfig;
   sim: SimConfig;
   rounds: RoundsConfig;
+  build: BuildConfig;
   skills: SkillsConfig;
 }
 
@@ -207,7 +234,10 @@ export const CONFIG: GameConfig = {
 
   rounds: {
     bestOfOptions: [3, 5, 7, 10],
-    statPointsPerPlayer: 16,
+  },
+
+  build: {
+    points: 16,
   },
 
   skills: {
@@ -274,6 +304,29 @@ export function bladeWidth(cfg: GameConfig = CONFIG): number {
   return cfg.player.radius * 2 * cfg.skills.slash.bladeWidthRatio;
 }
 
+/**
+ * Every leveled stat id in `cfg`, in a stable order (skill order, then field
+ * order as written above). Runtime twin of the `StatId` type: a field is a
+ * stat exactly when it is an array.
+ */
+export function leveledStatIds(cfg: GameConfig = CONFIG): StatId[] {
+  const ids: StatId[] = [];
+  for (const [skill, skillCfg] of Object.entries(cfg.skills)) {
+    for (const [stat, value] of Object.entries(skillCfg)) {
+      if (Array.isArray(value)) ids.push(`${skill}.${stat}` as StatId);
+    }
+  }
+  return ids;
+}
+
+/** The level table behind a stat id (index 0 = level 1). */
+export function statLevels(id: StatId, cfg: GameConfig = CONFIG): Levels {
+  const [skill, stat] = id.split(".");
+  const table = (cfg.skills as unknown as Record<string, Record<string, unknown>>)[skill]?.[stat];
+  if (!Array.isArray(table)) throw new Error(`${id} is not a leveled stat`);
+  return table as Levels;
+}
+
 /* ---------------------------------------------------------- validation ---- */
 
 /**
@@ -300,7 +353,7 @@ export function validateConfig(cfg: GameConfig = CONFIG): void {
     vs.forEach((v, i) => positive(`${name}[${i}]`, v));
   };
 
-  const { arena, player, sim, rounds, skills } = cfg;
+  const { arena, player, sim, rounds, build, skills } = cfg;
 
   positive("arena.size", arena.size);
   if (arena.spawnPoints.length < 2) errors.push("arena.spawnPoints needs at least 2 entries");
@@ -333,7 +386,22 @@ export function validateConfig(cfg: GameConfig = CONFIG): void {
   positive("sim.collisionIterations", sim.collisionIterations);
 
   if (rounds.bestOfOptions.length === 0) errors.push("rounds.bestOfOptions must not be empty");
-  positive("rounds.statPointsPerPlayer", rounds.statPointsPerPlayer);
+  rounds.bestOfOptions.forEach((n, i) => {
+    positive(`rounds.bestOfOptions[${i}]`, n);
+    integer(`rounds.bestOfOptions[${i}]`, n);
+  });
+
+  positive("build.points", build.points);
+  integer("build.points", build.points);
+  const statIds = leveledStatIds(cfg);
+  const minSpend = statIds.length;
+  const maxSpend = statIds.reduce((sum, id) => sum + statLevels(id, cfg).length, 0);
+  if (build.points < minSpend || build.points > maxSpend) {
+    errors.push(
+      `build.points must be within [${minSpend}, ${maxSpend}] ` +
+        `(level 1 of all ${minSpend} leveled stats is mandatory; ${maxSpend} maxes every stat) (got ${build.points})`,
+    );
+  }
 
   positiveLevels("skills.dash.cooldownMs", skills.dash.cooldownMs);
   positiveLevels("skills.dash.distance", skills.dash.distance);

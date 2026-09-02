@@ -112,26 +112,42 @@ h2 {
   line-height: 1.9;
 }
 
+/* Per-game builds: one skill per line — name + live cooldown on the first
+   row, its stat levels underneath, then the key hint. */
 .skill-list li {
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-areas:
     "name cd"
+    "levels levels"
     "key key";
   align-items: baseline;
-  padding: 4px 0;
+  line-height: 1.3;
+  padding: 5px 0;
   border-bottom: 1px solid var(--panel-border);
 }
 
 .skill-list .skill-name {
   grid-area: name;
+  display: block;
+}
+
+.skill-list .skill-levels {
+  grid-area: levels;
+  display: block;
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.skill-levels span + span::before {
+  content: " · ";
 }
 
 .skill-list kbd {
   grid-area: key;
   font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ink-dim);
-  line-height: 1.4;
+  line-height: 1.6;
 }
 
 .skill-list .cd {
@@ -147,6 +163,10 @@ h2 {
 
 .skill-list li.active .skill-name {
   color: #ffe9a8;
+}
+
+.build-rival-title {
+  margin-top: 16px;
 }
 
 .ui-slot {

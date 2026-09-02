@@ -29,7 +29,7 @@ export function dealDamage(
 ): HitOutcome {
   if (isDead(target)) return { damage: 0, blocked: false };
 
-  const shield = resolveShield(target.levels, world.config);
+  const shield = resolveShield(target.loadout, world.config);
   const blocked = shieldBlocks(target, sourcePos, shield.coneDeg);
   // Floor so a partial block can never produce fractional HP.
   const applied = blocked ? Math.floor(amount * (1 - shield.blockFraction)) : amount;

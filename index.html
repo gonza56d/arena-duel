@@ -14,14 +14,17 @@
       </header>
 
       <aside class="ui-bar ui-left">
-        <h2>Skills</h2>
-        <ul class="skill-list" id="skill-list">
-          <li data-skill="dash"><span class="skill-name">Dash</span><kbd>L-Shift</kbd><span class="cd">ready</span></li>
-          <li data-skill="slash"><span class="skill-name">Slash</span><kbd>L / R click</kbd><span class="cd">ready</span></li>
-          <li data-skill="bash"><span class="skill-name">Bash</span><kbd>E</kbd><span class="cd">ready</span></li>
-          <li data-skill="shot"><span class="skill-name">Shot</span><kbd>Alt / ⌘</kbd><span class="cd">ready</span></li>
-          <li data-skill="shield"><span class="skill-name">Shield</span><kbd>Space</kbd><span class="cd">ready</span></li>
+        <!-- Builds are rolled per game and filled in by main.ts; the static names are the pre-game placeholder. -->
+        <h2 id="build-title">Your build</h2>
+        <ul class="skill-list" id="build-local">
+          <li>Dash</li>
+          <li>Slash</li>
+          <li>Bash</li>
+          <li>Shot</li>
+          <li>Shield</li>
         </ul>
+        <h2 class="build-rival-title">Rival build</h2>
+        <ul class="skill-list" id="build-rival"></ul>
       </aside>
 
       <main class="stage" id="stage">

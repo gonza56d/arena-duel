@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../config";
 import { circleInsideSquare, circleIntersectsRect, circlesIntersect } from "./geometry";
+import { generateLoadout, validateLoadout } from "./loadout";
 import { isDead } from "./player";
-import { defaultSkillLevels } from "./skills/stats";
+import { createRng } from "./rng";
 import { createWorld, damagePlayer, stepWorld } from "./world";
 
 describe("createWorld", () => {
@@ -29,25 +30,47 @@ describe("createWorld", () => {
     }
   });
 
-  it("spawns players with level-1 builds unless told otherwise", () => {
-    const custom = defaultSkillLevels();
-    custom.dash.distance = 3;
-    const w = createWorld({ seed: 1, levels: { 1: custom } });
-    expect(w.players[0].levels).toEqual(defaultSkillLevels());
-    expect(w.players[1].levels.dash.distance).toBe(3);
-    expect(w.players[0].cooldowns).toEqual({ dash: 0, slash: 0, shot: 0, shield: 0, bash: 0 });
+  it("spawns players with every skill ready, no bullets in flight and no events", () => {
+    const w = createWorld({ seed: 1 });
+    for (const p of w.players) {
+      expect(p.cooldowns).toEqual({ dash: 0, slash: 0, shot: 0, shield: 0, bash: 0 });
+      expect(p.slow).toBeNull();
+      expect([p.dash, p.slash, p.shot, p.bash, p.shield]).toEqual([null, null, null, null, null]);
+    }
     expect(w.projectiles).toEqual([]);
-  });
-
-  it("rejects an out-of-range build up front", () => {
-    const bad = defaultSkillLevels();
-    bad.shot.damage = 9;
-    expect(() => createWorld({ seed: 1, levels: { 0: bad } })).toThrow(/shot.damage level 9/);
+    expect(w.events).toEqual([]);
   });
 
   it("rejects an invalid config up front", () => {
     const bad: GameConfig = { ...CONFIG, player: { ...CONFIG.player, maxHp: 9.5 } };
     expect(() => createWorld({ seed: 1, config: bad })).toThrow(/Invalid game config/);
+  });
+
+  it("gives every player a valid loadout by default, deterministic per seed", () => {
+    const w = createWorld({ seed: 1 });
+    for (const p of w.players) expect(validateLoadout(p.loadout).ok).toBe(true);
+    expect(createWorld({ seed: 1 }).players.map((p) => p.loadout)).toEqual(w.players.map((p) => p.loadout));
+  });
+
+  it("keeps a seed's obstacle layout the same whether loadouts are passed or rolled", () => {
+    const rolled = createWorld({ seed: 5 });
+    const given = createWorld({ seed: 5, loadouts: [generateLoadout(createRng(1)), generateLoadout(createRng(2))] });
+    expect(given.obstacles).toEqual(rolled.obstacles);
+  });
+
+  it("uses the loadouts it is given, one per player", () => {
+    const a = generateLoadout(createRng(1));
+    const b = generateLoadout(createRng(2));
+    const w = createWorld({ seed: 1, loadouts: [a, b] });
+    expect(w.players[0].loadout).toBe(a);
+    expect(w.players[1].loadout).toBe(b);
+    expect(() => createWorld({ seed: 1, loadouts: [a] })).toThrow(/2 players with 1 loadouts/);
+  });
+
+  it("rejects an invalid loadout up front", () => {
+    const a = generateLoadout(createRng(1));
+    const over = { ...a, "dash.distance": a["dash.distance"] + 1 };
+    expect(() => createWorld({ seed: 1, loadouts: [a, over] })).toThrow(/Invalid loadout/);
   });
 });
 

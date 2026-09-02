@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { CONFIG, type GameConfig } from "../../config";
+import { CONFIG, type GameConfig, type StatId } from "../../config";
 import { circleInsideSquare, circleIntersectsRect, circlesIntersect, distance } from "../geometry";
-import { defaultSkillLevels } from "./stats";
 import { createWorld, stepWorld, type PlayerInput, type World } from "../world";
+import { testLoadout } from "./loadout.testutil";
 
 const TICK = CONFIG.sim.tickMs;
 const SIZE = CONFIG.arena.size;
 const R = CONFIG.player.radius;
 const dash = CONFIG.skills.dash;
+
+/** Free points go to stats no dash test observes. */
+const FILLER: StatId[] = ["shield.cooldownMs", "slash.range", "shot.range", "slash.areaDeg", "shot.damage", "slash.damage", "slash.cooldownMs", "shot.cooldownMs"];
 
 function withDash(patch: Partial<GameConfig["skills"]["dash"]>): GameConfig {
   return { ...CONFIG, skills: { ...CONFIG.skills, dash: { ...dash, ...patch } } };
@@ -19,6 +22,7 @@ function setup(opts: {
   rival?: { x: number; y: number };
   obstacles?: { x: number; y: number; w: number; h: number }[];
   config?: GameConfig;
+  /** 1-based `dash.distance` level for the dasher (default 1). */
   distanceLevel?: number;
 }): World {
   const config = opts.config ?? CONFIG;
@@ -26,9 +30,9 @@ function setup(opts: {
     ...config,
     arena: { ...config.arena, obstacles: { ...config.arena.obstacles, countMin: 0, countMax: 0 } },
   };
-  const lv = defaultSkillLevels();
-  lv.dash.distance = opts.distanceLevel ?? 0;
-  const w = createWorld({ seed: 1, config: noObstacles, levels: { 0: lv } });
+  const dasher = testLoadout({ "dash.cooldownMs": 1, "dash.distance": opts.distanceLevel ?? 1 }, FILLER, noObstacles);
+  const bystander = testLoadout({}, FILLER, noObstacles);
+  const w = createWorld({ seed: 1, config: noObstacles, loadouts: [dasher, bystander] });
   w.players[0].pos = opts.me ?? { x: 1000, y: 1000 };
   w.players[1].pos = opts.rival ?? { x: 1000, y: 200 };
   (w.obstacles as { x: number; y: number; w: number; h: number; id: number }[]).push(
@@ -97,7 +101,7 @@ describe("Dash", () => {
   });
 
   it("takes the same 100 ms whatever the distance level", () => {
-    const w = setup({ distanceLevel: 3 });
+    const w = setup({ distanceLevel: 4 });
     doDash(w);
     expect(w.players[0].pos.x).toBeCloseTo(1000 + dash.distance[3]);
     expect(w.players[0].dash).toBeNull();

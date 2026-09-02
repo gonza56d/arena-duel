@@ -44,7 +44,7 @@ let nextProjectileId = 1;
 
 export function triggerShot(world: World, p: PlayerState): boolean {
   if (!isReady(p, "shot")) return false;
-  const stats = resolveShot(p.levels, world.config);
+  const stats = resolveShot(p.loadout, world.config);
   startCooldown(p, "shot", stats.cooldownMs);
   p.shot = { dir: { ...p.aimDir }, elapsedMs: 0, windupMs: stats.windupMs };
   world.events.push({ type: "skill", skill: "shot", playerId: p.id });
@@ -58,7 +58,7 @@ export function tickShot(world: World, p: PlayerState, dtMs: number): void {
   s.elapsedMs += dtMs;
   if (s.elapsedMs < s.windupMs) return;
 
-  const stats = resolveShot(p.levels, world.config);
+  const stats = resolveShot(p.loadout, world.config);
   world.projectiles.push({
     id: nextProjectileId++,
     ownerId: p.id,

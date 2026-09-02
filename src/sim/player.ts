@@ -9,16 +9,20 @@
  *    alive and below max.
  *  - A player is dead when HP ≤ 0. HP is not clamped at 0 so overkill is
  *    visible; it is clamped at `maxHp` from above.
+ *  - Every player carries a `loadout` (its skill levels, see loadout.ts); it
+ *    is fixed for the whole match and is what skills read their stats from.
+ *  - Skill runtime state (aim, cooldowns, slow, in-progress skills) also lives
+ *    here; the skill modules under ./skills own the state types.
  */
 import { CONFIG, type GameConfig } from "../config";
 import type { Vec2 } from "./geometry";
+import type { Loadout } from "./loadout";
 import type { BashState } from "./skills/bash";
 import { zeroCooldowns, type Cooldowns } from "./skills/cooldowns";
 import type { DashState } from "./skills/dash";
 import type { ShieldState } from "./skills/shield";
 import type { ShotState } from "./skills/shot";
 import type { SlashState } from "./skills/slash";
-import { defaultSkillLevels, validateSkillLevels, type SkillLevels } from "./skills/stats";
 
 /** A temporary movement-speed reduction (Bash). Re-applying refreshes, never stacks. */
 export interface SlowEffect {
@@ -37,8 +41,8 @@ export interface PlayerState {
   lastMoveDir: Vec2;
   /** Unit vector from the player towards the pointer; aimed skills use it. */
   aimDir: Vec2;
-  /** This player's build: a level index per levelled stat. */
-  levels: SkillLevels;
+  /** Skill levels for this match. Skills read their stats through `statValue` / `resolve*`. */
+  readonly loadout: Loadout;
   /** Remaining cooldown per skill, in ms (0 = ready). */
   cooldowns: Cooldowns;
   slow: SlowEffect | null;
@@ -50,13 +54,7 @@ export interface PlayerState {
   shield: ShieldState | null;
 }
 
-export function createPlayer(
-  id: number,
-  pos: Vec2,
-  cfg: GameConfig = CONFIG,
-  levels: SkillLevels = defaultSkillLevels(),
-): PlayerState {
-  validateSkillLevels(levels, cfg);
+export function createPlayer(id: number, pos: Vec2, loadout: Loadout, cfg: GameConfig = CONFIG): PlayerState {
   return {
     id,
     pos: { x: pos.x, y: pos.y },
@@ -65,7 +63,7 @@ export function createPlayer(
     healTimerMs: 0,
     lastMoveDir: { x: 1, y: 0 },
     aimDir: { x: 1, y: 0 },
-    levels,
+    loadout,
     cooldowns: zeroCooldowns(),
     slow: null,
     dash: null,

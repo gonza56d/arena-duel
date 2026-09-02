@@ -1,33 +1,17 @@
 /**
- * Per-player skill levels and the concrete numbers they resolve to.
+ * The concrete numbers a player's skills use, resolved from its `Loadout`.
  *
- * The design doc gives each *stat* its own level table (Dash distance, Slash
- * range, Slash damage, …), so a player's build is a level index per stat, not
- * per skill. Indices are 0-based (0 = "level 1" in the doc). Bash has no
- * levelled stats. Every number below is read from the central config; nothing
- * in this file is a gameplay literal.
+ * A loadout holds a 1-based level per leveled stat (see ../loadout.ts);
+ * `statValue` bridges that to the 0-indexed config tables, and the `resolve*`
+ * helpers below gather each skill's numbers — leveled stats through
+ * `statValue`, fixed ones straight from the config — so skill code never
+ * indexes `CONFIG.skills.x.y[...]` itself. Bash has no leveled stats.
  */
-import { CONFIG, bladeWidth, bulletRadius, bulletSpeedUnitsPerMs, type BashConfig, type GameConfig, type Levels } from "../../config";
+import { CONFIG, bladeWidth, bulletRadius, bulletSpeedUnitsPerMs, type BashConfig, type GameConfig } from "../../config";
+import { statValue, type Loadout } from "../loadout";
 
 export type SkillId = "dash" | "slash" | "shot" | "shield" | "bash";
 export const SKILL_IDS: readonly SkillId[] = ["dash", "slash", "shot", "shield", "bash"];
-
-export interface SkillLevels {
-  dash: { cooldown: number; distance: number };
-  slash: { cooldown: number; range: number; area: number; damage: number };
-  shot: { cooldown: number; range: number; damage: number };
-  shield: { cooldown: number };
-}
-
-/** Every stat at level 1. */
-export function defaultSkillLevels(): SkillLevels {
-  return {
-    dash: { cooldown: 0, distance: 0 },
-    slash: { cooldown: 0, range: 0, area: 0, damage: 0 },
-    shot: { cooldown: 0, range: 0, damage: 0 },
-    shield: { cooldown: 0 },
-  };
-}
 
 export interface DashStats {
   cooldownMs: number;
@@ -66,51 +50,42 @@ export interface ShieldStats {
 
 export type BashStats = Readonly<BashConfig>;
 
-function pick(name: string, table: Levels, level: number): number {
-  if (!Number.isInteger(level) || level < 0 || level >= table.length) {
-    throw new Error(`${name} level ${level} out of range [0, ${table.length - 1}]`);
-  }
-  return table[level];
-}
-
-export function resolveDash(levels: SkillLevels, cfg: GameConfig = CONFIG): DashStats {
-  const c = cfg.skills.dash;
+export function resolveDash(loadout: Loadout, cfg: GameConfig = CONFIG): DashStats {
   return {
-    cooldownMs: pick("dash.cooldown", c.cooldownMs, levels.dash.cooldown),
-    distance: pick("dash.distance", c.distance, levels.dash.distance),
-    durationMs: c.durationMs,
+    cooldownMs: statValue(loadout, "dash.cooldownMs", cfg),
+    distance: statValue(loadout, "dash.distance", cfg),
+    durationMs: cfg.skills.dash.durationMs,
   };
 }
 
-export function resolveSlash(levels: SkillLevels, cfg: GameConfig = CONFIG): SlashStats {
+export function resolveSlash(loadout: Loadout, cfg: GameConfig = CONFIG): SlashStats {
   const c = cfg.skills.slash;
   return {
-    cooldownMs: pick("slash.cooldown", c.cooldownMs, levels.slash.cooldown),
-    range: pick("slash.range", c.range, levels.slash.range),
-    areaDeg: pick("slash.area", c.areaDeg, levels.slash.area),
-    damage: pick("slash.damage", c.damage, levels.slash.damage),
+    cooldownMs: statValue(loadout, "slash.cooldownMs", cfg),
+    range: statValue(loadout, "slash.range", cfg),
+    areaDeg: statValue(loadout, "slash.areaDeg", cfg),
+    damage: statValue(loadout, "slash.damage", cfg),
     windupMs: c.windupMs,
     swingMs: c.swingMs,
     bladeWidth: bladeWidth(cfg),
   };
 }
 
-export function resolveShot(levels: SkillLevels, cfg: GameConfig = CONFIG): ShotStats {
-  const c = cfg.skills.shot;
+export function resolveShot(loadout: Loadout, cfg: GameConfig = CONFIG): ShotStats {
   return {
-    cooldownMs: pick("shot.cooldown", c.cooldownMs, levels.shot.cooldown),
-    range: pick("shot.range", c.range, levels.shot.range),
-    damage: pick("shot.damage", c.damage, levels.shot.damage),
-    windupMs: c.windupMs,
+    cooldownMs: statValue(loadout, "shot.cooldownMs", cfg),
+    range: statValue(loadout, "shot.range", cfg),
+    damage: statValue(loadout, "shot.damage", cfg),
+    windupMs: cfg.skills.shot.windupMs,
     speed: bulletSpeedUnitsPerMs(cfg),
     bulletRadius: bulletRadius(cfg),
   };
 }
 
-export function resolveShield(levels: SkillLevels, cfg: GameConfig = CONFIG): ShieldStats {
+export function resolveShield(loadout: Loadout, cfg: GameConfig = CONFIG): ShieldStats {
   const c = cfg.skills.shield;
   return {
-    cooldownMs: pick("shield.cooldown", c.cooldownMs, levels.shield.cooldown),
+    cooldownMs: statValue(loadout, "shield.cooldownMs", cfg),
     blockFraction: c.blockFraction,
     coneDeg: c.coneDeg,
     windupMs: c.windupMs,
@@ -120,12 +95,4 @@ export function resolveShield(levels: SkillLevels, cfg: GameConfig = CONFIG): Sh
 
 export function resolveBash(cfg: GameConfig = CONFIG): BashStats {
   return cfg.skills.bash;
-}
-
-/** Throws when any level index falls outside its config table. */
-export function validateSkillLevels(levels: SkillLevels, cfg: GameConfig = CONFIG): void {
-  resolveDash(levels, cfg);
-  resolveSlash(levels, cfg);
-  resolveShot(levels, cfg);
-  resolveShield(levels, cfg);
 }

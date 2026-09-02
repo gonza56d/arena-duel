@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CONFIG, bulletRadius, bulletSpeedUnitsPerMs, type GameConfig } from "../../config";
-import { defaultSkillLevels, type SkillLevels } from "./stats";
+import { CONFIG, bulletRadius, bulletSpeedUnitsPerMs, type GameConfig, type StatId } from "../../config";
 import { createWorld, stepWorld, type PlayerInput, type World } from "../world";
+import { testLoadout } from "./loadout.testutil";
 
 const TICK = CONFIG.sim.tickMs;
 const SIZE = CONFIG.arena.size;
@@ -10,6 +10,9 @@ const { maxHp } = CONFIG.player;
 const shot = CONFIG.skills.shot;
 const BULLET_R = bulletRadius(CONFIG); // 12.5
 const SPEED = bulletSpeedUnitsPerMs(CONFIG); // 2.1 units/ms → 21 per tick
+
+/** Free points go to stats no shot test observes. */
+const FILLER: StatId[] = ["shield.cooldownMs", "dash.distance", "slash.range", "slash.areaDeg", "slash.damage", "dash.cooldownMs", "slash.cooldownMs"];
 
 function withShot(patch: Partial<GameConfig["skills"]["shot"]>): GameConfig {
   return { ...CONFIG, skills: { ...CONFIG.skills, shot: { ...shot, ...patch } } };
@@ -21,7 +24,8 @@ function setup(opts: {
   rival?: { x: number; y: number };
   aim?: { x: number; y: number };
   config?: GameConfig;
-  levels?: Partial<SkillLevels["shot"]>;
+  /** 1-based shot stat levels for the shooter; unspecified shot stats stay at level 1. */
+  levels?: Partial<Record<"range" | "damage", number>>;
   obstacles?: { x: number; y: number; w: number; h: number }[];
 }): World {
   const config = opts.config ?? CONFIG;
@@ -29,9 +33,13 @@ function setup(opts: {
     ...config,
     arena: { ...config.arena, obstacles: { ...config.arena.obstacles, countMin: 0, countMax: 0 } },
   };
-  const lv = defaultSkillLevels();
-  Object.assign(lv.shot, opts.levels);
-  const w = createWorld({ seed: 1, config: noObstacles, levels: { 0: lv } });
+  const shooter = testLoadout(
+    { "shot.cooldownMs": 1, "shot.range": opts.levels?.range ?? 1, "shot.damage": opts.levels?.damage ?? 1 },
+    FILLER,
+    noObstacles,
+  );
+  const target = testLoadout({}, FILLER, noObstacles);
+  const w = createWorld({ seed: 1, config: noObstacles, loadouts: [shooter, target] });
   w.players[0].pos = opts.me ?? { x: 1000, y: 1000 };
   w.players[1].pos = opts.rival ?? { x: 1000, y: 200 }; // out of the way by default
   (w.obstacles as { x: number; y: number; w: number; h: number; id: number }[]).push(
@@ -211,7 +219,7 @@ describe("Shot", () => {
   });
 
   it("uses the damage of its level", () => {
-    const w = setup({ rival: { x: 1400, y: 1000 }, levels: { damage: 2 } });
+    const w = setup({ rival: { x: 1400, y: 1000 }, levels: { damage: 3 } });
     fireAndSpawn(w);
     flyUntilStopped(w);
     expect(w.players[1].hp).toBe(maxHp - shot.damage[2]);

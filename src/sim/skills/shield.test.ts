@@ -3,14 +3,19 @@ import { CONFIG, type GameConfig } from "../../config";
 import { dealDamage } from "./combat";
 import { isShieldUp } from "./shield";
 import { createWorld, stepWorld, type World } from "../world";
+import { testLoadout } from "./loadout.testutil";
 
 const TICK = CONFIG.sim.tickMs;
 const { maxHp } = CONFIG.player;
 const shieldCfg = CONFIG.skills.shield;
 
 /** Two players 300 units apart on the x axis, the defender (id 0) aiming at the attacker (id 1). */
+/** Level-1 shield cooldown for both players; the free points go where no shield test looks. */
+const FILLER = ["dash.distance", "slash.range"] as const;
+
 function duel(config: GameConfig = CONFIG): World {
-  const w = createWorld({ seed: 1, config });
+  const loadout = testLoadout({ "shield.cooldownMs": 1 }, FILLER, config);
+  const w = createWorld({ seed: 1, config, loadouts: [loadout, loadout] });
   w.players[0].pos = { x: 1000, y: 1000 };
   w.players[1].pos = { x: 1300, y: 1000 };
   stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: 1300, y: 1000 } } });

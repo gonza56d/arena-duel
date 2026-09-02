@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../../config";
-import { defaultSkillLevels, type SkillLevels } from "./stats";
+import { type StatId } from "../../config";
 import { createWorld, stepWorld, type PlayerInput, type World } from "../world";
+import { testLoadout } from "./loadout.testutil";
 
 const TICK = CONFIG.sim.tickMs;
 const R = CONFIG.player.radius;
@@ -16,14 +17,27 @@ function withSlash(patch: Partial<GameConfig["skills"]["slash"]>): GameConfig {
 interface Setup {
   rival: { x: number; y: number };
   config?: GameConfig;
-  levels?: Partial<SkillLevels["slash"]>;
+  /** 1-based slash stat levels for the attacker; unspecified slash stats stay at level 1. */
+  levels?: Partial<Record<"range" | "area" | "damage", number>>;
 }
 
+/** Free points go to stats no slash test observes. */
+const FILLER: StatId[] = ["shield.cooldownMs", "dash.distance", "shot.range", "shot.damage", "dash.cooldownMs", "shot.cooldownMs"];
+
 /** Attacker (id 0) at (1000,1000) aiming +x; rival (id 1) at `rival`. */
-function setup({ rival, config = CONFIG, levels }: Setup): World {
-  const lv = defaultSkillLevels();
-  Object.assign(lv.slash, levels);
-  const w = createWorld({ seed: 1, config, levels: { 0: lv } });
+function setup({ rival, config = CONFIG, levels = {} }: Setup): World {
+  const attacker = testLoadout(
+    {
+      "slash.cooldownMs": 1,
+      "slash.range": levels.range ?? 1,
+      "slash.areaDeg": levels.area ?? 1,
+      "slash.damage": levels.damage ?? 1,
+    },
+    FILLER,
+    config,
+  );
+  const defender = testLoadout({}, FILLER, config);
+  const w = createWorld({ seed: 1, config, loadouts: [attacker, defender] });
   w.players[0].pos = { x: 1000, y: 1000 };
   w.players[1].pos = rival;
   stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: 2000, y: 1000 } } });
@@ -79,15 +93,15 @@ describe("Slash", () => {
   it("travels: the blade reaches the side it starts from first (primary right → left, secondary the reverse)", () => {
     // Rival 30° to the attacker's right at distance 70, 90° cone. The primary swing starts
     // on the right and meets it at once; the secondary swing has to travel across first.
-    const fromRight = timeToHit(setup({ rival: polar(70, 30), levels: { area: 3 } }), primary)!;
-    const fromLeft = timeToHit(setup({ rival: polar(70, 30), levels: { area: 3 } }), secondary)!;
+    const fromRight = timeToHit(setup({ rival: polar(70, 30), levels: { area: 4 } }), primary)!;
+    const fromLeft = timeToHit(setup({ rival: polar(70, 30), levels: { area: 4 } }), secondary)!;
     expect(fromRight).toBeLessThan(fromLeft);
     expect(fromRight).toBe(80); // first tick of the swing
     expect(fromLeft).toBe(110); // blade at 11.6° after ≈31 ms of the 50 ms swing
 
     // Mirror: rival on the left.
-    const mirrorPrimary = timeToHit(setup({ rival: polar(70, -30), levels: { area: 3 } }), primary)!;
-    const mirrorSecondary = timeToHit(setup({ rival: polar(70, -30), levels: { area: 3 } }), secondary)!;
+    const mirrorPrimary = timeToHit(setup({ rival: polar(70, -30), levels: { area: 4 } }), primary)!;
+    const mirrorSecondary = timeToHit(setup({ rival: polar(70, -30), levels: { area: 4 } }), secondary)!;
     expect(mirrorSecondary).toBe(80);
     expect(mirrorPrimary).toBe(110);
   });
@@ -97,15 +111,15 @@ describe("Slash", () => {
     expect(timeToHit(setup({ rival: polar(reach - 0.01, 0) }))).not.toBeNull();
     expect(timeToHit(setup({ rival: polar(reach + 1, 0) }))).toBeNull();
     // Range level 4 reaches further.
-    expect(timeToHit(setup({ rival: polar(reach + 1, 0), levels: { range: 3 } }))).not.toBeNull();
+    expect(timeToHit(setup({ rival: polar(reach + 1, 0), levels: { range: 4 } }))).not.toBeNull();
   });
 
   it("hits only inside the cone; a wider area reaches a rival off to the side", () => {
     // Rival at 60° off aim, distance 50: outside the 45° cone's reach, inside the 90° one.
     expect(timeToHit(setup({ rival: polar(50, 60) }))).toBeNull();
-    expect(timeToHit(setup({ rival: polar(50, 60), levels: { area: 3 } }))).not.toBeNull();
+    expect(timeToHit(setup({ rival: polar(50, 60), levels: { area: 4 } }))).not.toBeNull();
     // Directly behind: never.
-    expect(timeToHit(setup({ rival: polar(40, 180), levels: { area: 3 } }))).toBeNull();
+    expect(timeToHit(setup({ rival: polar(40, 180), levels: { area: 4 } }))).toBeNull();
   });
 
   it("hits each enemy once per swing", () => {
@@ -117,7 +131,7 @@ describe("Slash", () => {
   });
 
   it("deals the integer damage of its level", () => {
-    const w = setup({ rival: polar(60, 0), levels: { damage: 2 } });
+    const w = setup({ rival: polar(60, 0), levels: { damage: 3 } });
     timeToHit(w);
     expect(w.players[1].hp).toBe(maxHp - slash.damage[2]);
     expect(Number.isInteger(w.players[1].hp)).toBe(true);

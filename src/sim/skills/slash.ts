@@ -36,7 +36,7 @@ export interface SlashState {
 
 export function triggerSlash(world: World, p: PlayerState, primary: boolean): boolean {
   if (!isReady(p, "slash")) return false;
-  const stats = resolveSlash(p.levels, world.config);
+  const stats = resolveSlash(p.loadout, world.config);
   startCooldown(p, "slash", stats.cooldownMs);
 
   const centre = angleOf(p.aimDir);

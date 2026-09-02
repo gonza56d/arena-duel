@@ -6,6 +6,11 @@
  * capped at `sim.maxTicksPerFrame` (after a tab switch the game slows instead
  * of freezing while it replays seconds of ticks).
  *
+ * The loop drives a `Match` (one best-of-N game): the match owns the players'
+ * loadouts for the whole game and swaps in a fresh `World` per round, so the
+ * loop always simulates and draws `match.world`. `newGame()` is the only thing
+ * that rerolls loadouts; `nextRound()` keeps them.
+ *
  * `advance()` is the single code path that turns elapsed time into ticks and a
  * frame; the rAF callback and the dev tuning handle both go through it. Skill
  * triggers are one-shot: they apply to the first tick of the call only.
@@ -15,8 +20,9 @@ import { CONFIG, type GameConfig } from "./config";
 import { createInput } from "./input";
 import { createRenderer, FX_LINGER_MS, type Renderer, type TimedEvent } from "./renderer";
 import type { Vec2 } from "./sim/geometry";
+import { createMatch, startNextRound, type Match } from "./sim/match";
 import type { SkillTriggers } from "./sim/skills";
-import { createWorld, stepWorld, type PlayerInput, type World, type WorldInputs } from "./sim/world";
+import { stepWorld, type PlayerInput, type World, type WorldInputs } from "./sim/world";
 
 export interface InputOverride {
   move?: Vec2;
@@ -25,7 +31,10 @@ export interface InputOverride {
 }
 
 export interface Game {
-  world: World;
+  /** The game in progress; replaced by `newGame()`. */
+  readonly match: Match;
+  /** The round in progress (`match.world`); replaced by `nextRound()`. */
+  readonly world: World;
   viewport: ArenaViewport;
   /** Id of the player driven by this client's keyboard and mouse. */
   localPlayerId: number;
@@ -37,11 +46,17 @@ export interface Game {
   advance(elapsedMs: number, override?: InputOverride): void;
   /** Queue an input for any player, applied on the next tick only (dev / dummy control). */
   queue(playerId: number, input: PlayerInput): void;
+  /** Start the next round of the current game: new layout, same loadouts. */
+  nextRound(): World;
+  /** Start a whole new game (same best-of): both loadouts are rerolled. */
+  newGame(seed?: number): Match;
   stop(): void;
 }
 
 export interface GameOptions {
   seed?: number;
+  /** One of `rounds.bestOfOptions`; defaults to the first. */
+  bestOf?: number;
   config?: GameConfig;
   /** Called once per rendered frame, after simulation and drawing. */
   onFrame?: (world: World, viewport: ArenaViewport) => void;
@@ -49,8 +64,8 @@ export interface GameOptions {
 
 export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Game {
   const config = opts.config ?? CONFIG;
-  const world = createWorld({ seed: opts.seed, config });
-  const localPlayerId = world.players[0].id;
+  let match = createMatch({ seed: opts.seed, bestOf: opts.bestOf, config });
+  const localPlayerId = match.world.players[0].id;
 
   const renderer: Renderer = createRenderer(canvas);
   const input = createInput(window, canvas, renderer.viewport);
@@ -64,7 +79,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let queued: WorldInputs = {};
   const fx: TimedEvent[] = [];
 
+  /** Forget per-round transient state when the world is replaced. */
+  function resetTransient(): void {
+    accumulator = 0;
+    queued = {};
+    fx.length = 0;
+  }
+
   function advance(elapsedMs: number, override: InputOverride = {}): void {
+    const world = match.world;
     // Drop time we cannot catch up on rather than spiralling.
     accumulator = Math.min(accumulator + elapsedMs, tickMs * maxTicks);
 
@@ -111,7 +134,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   requestAnimationFrame(frame);
 
   return {
-    world,
+    get match(): Match {
+      return match;
+    },
+    get world(): World {
+      return match.world;
+    },
     viewport: renderer.viewport,
     localPlayerId,
     advance,
@@ -120,6 +148,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       queued[playerId] = prev
         ? { ...prev, ...playerInput, skills: { ...(prev.skills ?? {}), ...(playerInput.skills ?? {}) } }
         : playerInput;
+    },
+    nextRound(): World {
+      resetTransient();
+      return startNextRound(match);
+    },
+    newGame(seed?: number): Match {
+      resetTransient();
+      match = createMatch({ seed, bestOf: match.bestOf, config });
+      return match;
     },
     stop(): void {
       running = false;

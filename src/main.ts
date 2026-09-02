@@ -6,12 +6,15 @@
  */
 import "./style.css";
 import { ARENA_SIZE, type ArenaViewport } from "./arena";
-import { CONFIG, validateConfig } from "./config";
+import { CONFIG, leveledStatIds, validateConfig, type StatId } from "./config";
 import { check } from "./deviceGate";
 import { startGame, type Game } from "./game";
+import { KEY_HINTS } from "./input";
+import { loadoutSpend, statValue, type Loadout } from "./sim/loadout";
+import type { Match } from "./sim/match";
 import { isDead } from "./sim/player";
 import type { SkillTriggers } from "./sim/skills";
-import { SKILL_IDS, type SkillId } from "./sim/skills/stats";
+import type { SkillId } from "./sim/skills/stats";
 import { damagePlayer, type World } from "./sim/world";
 
 validateConfig(CONFIG);
@@ -24,14 +27,69 @@ const canvas = document.getElementById("arena") as HTMLCanvasElement;
 const scaleInfo = document.getElementById("scale-info");
 const coordsInfo = document.getElementById("coords");
 const hud = document.getElementById("hud");
-const skillRows = new Map<SkillId, { li: HTMLElement; cd: HTMLElement }>();
-for (const id of SKILL_IDS) {
-  const li = document.querySelector<HTMLElement>(`#skill-list li[data-skill="${id}"]`);
-  const cd = li?.querySelector<HTMLElement>(".cd");
-  if (li && cd) skillRows.set(id, { li, cd });
-}
+const roundInfo = document.getElementById("round-info");
+const buildLocal = document.getElementById("build-local");
+const buildRival = document.getElementById("build-rival");
 
 let game: Game | null = null;
+/** The match whose builds are currently shown in the sidebar. */
+let shownMatch: Match | null = null;
+/** Cooldown slots of the local build list, rebuilt whenever the sidebar is re-rendered. */
+const skillRows = new Map<SkillId, { li: HTMLElement; cd: HTMLElement }>();
+
+/** Display names for skills and their leveled stats. */
+const SKILL_NAMES: Record<string, string> = { dash: "Dash", slash: "Slash", bash: "Bash", shot: "Shot", shield: "Shield" };
+const STAT_NAMES: Record<string, string> = { cooldownMs: "cooldown", areaDeg: "area" };
+
+/**
+ * List one build as "Skill — stat L· stat L" lines, one per skill in config
+ * order; skills with no leveled stat (Bash) read "fixed". Each level carries
+ * the config value it selects as a tooltip. For the local player the row also
+ * shows the key that fires the skill and a live cooldown slot.
+ */
+function renderBuild(list: HTMLElement, loadout: Loadout, withControls: boolean): void {
+  list.replaceChildren();
+  for (const skill of Object.keys(CONFIG.skills)) {
+    const ids = leveledStatIds(CONFIG).filter((id) => id.startsWith(`${skill}.`));
+    const li = document.createElement("li");
+    li.dataset.skill = skill;
+    const name = document.createElement("span");
+    name.className = "skill-name";
+    name.textContent = SKILL_NAMES[skill] ?? skill;
+    const levels = document.createElement("span");
+    levels.className = "skill-levels";
+    if (ids.length === 0) {
+      levels.textContent = "fixed";
+    } else {
+      for (const id of ids) {
+        const stat = id.slice(skill.length + 1);
+        const span = document.createElement("span");
+        span.textContent = `${STAT_NAMES[stat] ?? stat} ${loadout[id as StatId]}`;
+        span.title = `${id} level ${loadout[id as StatId]} → ${statValue(loadout, id as StatId, CONFIG)}`;
+        levels.append(span);
+      }
+    }
+    li.append(name, levels);
+    if (withControls) {
+      const key = document.createElement("kbd");
+      key.textContent = KEY_HINTS[skill as SkillId];
+      const cd = document.createElement("span");
+      cd.className = "cd";
+      cd.textContent = "ready";
+      li.append(key, cd);
+      skillRows.set(skill as SkillId, { li, cd });
+    }
+    list.append(li);
+  }
+}
+
+function renderMatch(m: Match): void {
+  skillRows.clear();
+  if (buildLocal) renderBuild(buildLocal, m.loadouts[0], true);
+  if (buildRival) renderBuild(buildRival, m.loadouts[1], false);
+  const title = document.getElementById("build-title");
+  if (title) title.textContent = `Your build · ${loadoutSpend(m.loadouts[0])}/${CONFIG.build.points} pts`;
+}
 
 function updateHud(world: World): void {
   if (!hud || !game) return;
@@ -55,6 +113,14 @@ function updateHud(world: World): void {
 }
 
 function onFrame(world: World, vp: ArenaViewport): void {
+  if (game) {
+    const m = game.match;
+    if (roundInfo) roundInfo.textContent = `Best of ${m.bestOf} · Round ${m.round}`;
+    if (m !== shownMatch) {
+      renderMatch(m);
+      shownMatch = m;
+    }
+  }
   updateHud(world);
   if (scaleInfo) {
     scaleInfo.textContent = `scale ${vp.scale.toFixed(3)} px/unit · arena ${ARENA_SIZE}×${ARENA_SIZE} → ${Math.round(
@@ -98,6 +164,8 @@ function evaluate(): void {
  *    player on the next tick and advances one tick.
  *  - `arenaDebug.rival({ shield: true }, aim?)` queues skills for the dummy
  *    rival (player 1) so blocking and hits can be exercised.
+ *  - `arenaDebug.loadouts` are the current game's builds; `nextRound()` keeps
+ *    them, `newGame(seed?)` rerolls them.
  */
 function exposeDebug(g: Game): void {
   if (!import.meta.env.DEV) return;
@@ -105,7 +173,15 @@ function exposeDebug(g: Game): void {
   const zero = { x: 0, y: 0 };
   (window as unknown as { arenaDebug: unknown }).arenaDebug = {
     config: CONFIG,
-    world: g.world,
+    get match() {
+      return g.match;
+    },
+    get world() {
+      return g.world;
+    },
+    get loadouts() {
+      return g.match.loadouts;
+    },
     damage: (amount = 1, playerId = g.localPlayerId) => damagePlayer(g.world, playerId, amount),
     step: (ms: number, move = zero, aim?: { x: number; y: number }) => {
       for (let left = ms; left > 0; left -= chunkMs) g.advance(Math.min(left, chunkMs), { move, aim });
@@ -118,6 +194,16 @@ function exposeDebug(g: Game): void {
     rival: (skills: SkillTriggers, aim?: { x: number; y: number }, move = zero, playerId = 1) => {
       g.queue(playerId, { move, aim, skills });
       return g.world.players.find((p) => p.id === playerId);
+    },
+    nextRound: () => {
+      g.nextRound();
+      g.advance(0);
+      return g.match.round;
+    },
+    newGame: (seed?: number) => {
+      g.newGame(seed);
+      g.advance(0);
+      return g.match.loadouts;
     },
   };
 }

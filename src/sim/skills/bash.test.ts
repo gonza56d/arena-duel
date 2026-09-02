@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../../config";
 import { speedMultiplier } from "../player";
 import { createWorld, stepWorld, type World } from "../world";
+import { testLoadout } from "./loadout.testutil";
 
 const TICK = CONFIG.sim.tickMs;
 const R = CONFIG.player.radius;
@@ -14,7 +15,8 @@ function withBash(patch: Partial<GameConfig["skills"]["bash"]>): GameConfig {
 
 /** Attacker (id 0) at (1000,1000) aiming +x; rival (id 1) placed at `rival`. */
 function setup(rival: { x: number; y: number }, config: GameConfig = CONFIG): World {
-  const w = createWorld({ seed: 1, config });
+  const loadout = testLoadout({}, undefined, config);
+  const w = createWorld({ seed: 1, config, loadouts: [loadout, loadout] });
   w.players[0].pos = { x: 1000, y: 1000 };
   w.players[1].pos = rival;
   stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: 2000, y: 1000 } } });

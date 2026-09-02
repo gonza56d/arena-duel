@@ -6,6 +6,7 @@
 import { CONFIG, validateConfig, type GameConfig } from "../config";
 import type { WorldEvent } from "./events";
 import { normalize, sub, type Circle, type Vec2 } from "./geometry";
+import { assertValidLoadout, generateLoadout, type Loadout } from "./loadout";
 import { movePlayer, type Environment } from "./movement";
 import { generateObstacles, type Obstacle } from "./obstacles";
 import { applyDamage, createPlayer, isDead, tickHeal, tickSlow, type PlayerState } from "./player";
@@ -14,7 +15,6 @@ import { NO_TRIGGERS, stepProjectiles, tickPlayerSkills, tickShields, triggerSki
 import { tickCooldowns } from "./skills/cooldowns";
 import { tickDash } from "./skills/dash";
 import type { Projectile } from "./skills/shot";
-import { defaultSkillLevels, type SkillLevels } from "./skills/stats";
 
 export interface World {
   readonly config: GameConfig;
@@ -49,8 +49,13 @@ export interface CreateWorldOptions {
   config?: GameConfig;
   /** Players to spawn (uses the first N config spawn points). Default 2. */
   playerCount?: number;
-  /** Skill builds keyed by player id; missing players get every stat at level 1. */
-  levels?: Partial<Record<number, SkillLevels>>;
+  /**
+   * One loadout per player (index = player id), normally fixed by the match
+   * so every round shares them. When omitted, each player gets a random valid
+   * build rolled from the world seed (after the obstacles, so a seed's layout
+   * is the same either way).
+   */
+  loadouts?: readonly Loadout[];
 }
 
 export function createWorld(opts: CreateWorldOptions = {}): World {
@@ -65,9 +70,16 @@ export function createWorld(opts: CreateWorldOptions = {}): World {
 
   const rng = createRng(seed);
   const obstacles = generateObstacles(rng, config);
+
+  const loadouts = opts.loadouts ?? Array.from({ length: playerCount }, () => generateLoadout(rng, config));
+  if (loadouts.length < playerCount) {
+    throw new Error(`Cannot spawn ${playerCount} players with ${loadouts.length} loadouts`);
+  }
+
   const players: PlayerState[] = [];
   for (let i = 0; i < playerCount; i++) {
-    players.push(createPlayer(i, config.arena.spawnPoints[i], config, opts.levels?.[i] ?? defaultSkillLevels()));
+    assertValidLoadout(loadouts[i], config);
+    players.push(createPlayer(i, config.arena.spawnPoints[i], loadouts[i], config));
   }
 
   return {

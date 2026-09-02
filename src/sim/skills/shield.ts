@@ -23,7 +23,7 @@ export interface ShieldState {
 /** Raise the shield if it is off cooldown. Returns true when it activated. */
 export function triggerShield(world: World, p: PlayerState): boolean {
   if (!isReady(p, "shield")) return false;
-  const stats = resolveShield(p.levels, world.config);
+  const stats = resolveShield(p.loadout, world.config);
   startCooldown(p, "shield", stats.cooldownMs);
   p.shield = { elapsedMs: 0, windupMs: stats.windupMs, activeMs: stats.activeMs };
   world.events.push({ type: "skill", skill: "shield", playerId: p.id });

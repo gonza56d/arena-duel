@@ -89,7 +89,7 @@ export function planDash(start: Vec2, radius: number, dir: Vec2, wanted: number,
 /** Start a dash along `moveInput` (or the last movement direction when idle). */
 export function triggerDash(world: World, p: PlayerState, moveInput: Vec2, env: Environment): boolean {
   if (!isReady(p, "dash")) return false;
-  const stats = resolveDash(p.levels, world.config);
+  const stats = resolveDash(p.loadout, world.config);
   startCooldown(p, "dash", stats.cooldownMs);
 
   const wanted = normalize(moveInput);
