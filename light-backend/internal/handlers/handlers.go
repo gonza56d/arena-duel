@@ -53,7 +53,7 @@ func (h *Handler) Signup(c *gin.Context) {
 		return
 	}
 
-	user := &models.User{Email: email, PasswordHash: hash}
+	user := &models.User{Email: email, PasswordHash: hash, Color: validate.DefaultColor}
 	if err := h.Users.CreateUser(c.Request.Context(), user); err != nil {
 		if errors.Is(err, store.ErrEmailTaken) {
 			c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})

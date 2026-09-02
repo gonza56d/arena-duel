@@ -112,3 +112,61 @@ func (s *MongoStore) FindByID(ctx context.Context, id string) (*models.User, err
 	}
 	return &u, nil
 }
+
+// UpdateProfile applies a partial $set of the player-editable fields and returns
+// the document as it is after the update. Counters are never touched here.
+func (s *MongoStore) UpdateProfile(ctx context.Context, id string, upd ProfileUpdate) (*models.User, error) {
+	if upd.IsEmpty() {
+		return nil, ErrEmptyUpdate
+	}
+	oid, err := primitiveObjectID(id)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+
+	set := bson.M{"updated_at": time.Now().UTC()}
+	if upd.PlayerName != nil {
+		set["player_name"] = *upd.PlayerName
+	}
+	if upd.Color != nil {
+		set["color"] = *upd.Color
+	}
+
+	var u models.User
+	err = s.users.FindOneAndUpdate(ctx,
+		bson.M{"_id": oid},
+		bson.M{"$set": set},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&u)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+// IncrementRecord atomically bumps games_played (and victories when won).
+func (s *MongoStore) IncrementRecord(ctx context.Context, id string, won bool) error {
+	oid, err := primitiveObjectID(id)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	inc := bson.M{"games_played": 1}
+	if won {
+		inc["victories"] = 1
+	}
+	res, err := s.users.UpdateOne(ctx,
+		bson.M{"_id": oid},
+		bson.M{"$inc": inc, "$set": bson.M{"updated_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

@@ -1,8 +1,8 @@
 # Arena Duel — Light Backend
 
-The low-intensity backend for Arena Duel: it owns **accounts and auth** now and
-will own **player profile** later. The real-time combat backend is a separate
-service. This one persists across all milestones.
+The low-intensity backend for Arena Duel: it owns **accounts, auth and the
+player profile** (name, color, record). The real-time combat backend is a
+separate service. This one persists across all milestones.
 
 Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
 **JWT (HS256)** bearer tokens.
@@ -14,7 +14,9 @@ Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
 | GET    | `/health`      | –         | Liveness probe.                              |
 | POST   | `/auth/signup` | –         | Register with `email` + `password`.          |
 | POST   | `/auth/login`  | –         | Verify credentials, return a bearer token.   |
-| GET    | `/me`          | Bearer    | Return the authenticated user.               |
+| GET    | `/me`          | Bearer    | Return the authenticated user document.      |
+| GET    | `/profile`     | Bearer    | Player profile: name, color, record.         |
+| PATCH  | `/profile`     | Bearer    | Update `player_name` and/or `color`.         |
 
 ### Rules
 
@@ -26,6 +28,16 @@ Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
   through a response.
 - **Login** returns the same `401` for unknown email and wrong password so
   accounts can't be enumerated.
+- **Player name** is changeable at any time: 2–24 printable characters,
+  trimmed, not unique.
+- **Color** accepts `#RRGGBB` or a preset (`red`, `blue`, `green`, `yellow`,
+  `orange`, `purple`, `cyan`, `pink`, `white`, `black`) and is always stored
+  and returned as lowercase `#rrggbb`. New accounts start with `#ffffff`.
+- **Victories / games played are server-owned.** `PATCH /profile` binds only
+  `player_name` and `color`; any other key is ignored. The counters change only
+  through `UserStore.IncrementRecord`, which has no HTTP endpoint (a client
+  must not be able to record its own wins). `configured_stats` is reserved on
+  the model for v2 and is not editable.
 
 ## Configuration
 
@@ -50,9 +62,10 @@ go test ./...
 ```
 
 The handler tests run against an in-memory user store, so no MongoDB is
-required for the test suite. They cover all four acceptance criteria: signup +
-duplicate rejection, hashed-not-plaintext storage, the token/`me` flow (200 with
-a token, 401 without), and email/password validation.
+required for the test suite. They cover signup + duplicate rejection,
+hashed-not-plaintext storage, the token/`me` flow (200 with a token, 401
+without), email/password validation, and the profile flow (set/change name and
+color, persistence across re-login, counters not client-editable).
 
 ## Example
 
@@ -69,6 +82,13 @@ TOKEN=$(curl -s -X POST localhost:8080/auth/login \
 
 # Me
 curl -s localhost:8080/me -H "Authorization: Bearer $TOKEN"
+
+# Set player name + color (preset or #RRGGBB), then read the profile
+curl -s -X PATCH localhost:8080/profile \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"player_name":"Zed","color":"red"}'
+curl -s localhost:8080/profile -H "Authorization: Bearer $TOKEN"
+# -> {"id":"...","email":"...","player_name":"Zed","color":"#e53935","victories":0,"games_played":0}
 ```
 
 ## Layout
@@ -76,11 +96,11 @@ curl -s localhost:8080/me -H "Authorization: Bearer $TOKEN"
 ```
 cmd/server/         entrypoint
 internal/config/    env-based configuration
-internal/models/    User document
+internal/models/    User document (account + profile + record counters)
 internal/store/     UserStore interface + Mongo impl + in-memory fake
 internal/auth/      bcrypt hashing + JWT issue/verify
-internal/validate/  email + password-strength rules
-internal/handlers/  signup, login, me
+internal/validate/  email, password-strength, player-name and color rules
+internal/handlers/  signup, login, me, profile get/update
 internal/middleware/ bearer-token auth middleware
 internal/server/    router wiring
 ```

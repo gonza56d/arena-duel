@@ -21,3 +21,15 @@ What: Login failures return an opaque 401 regardless of whether the email exists
 ## Password strength rule is minimum 8 characters with at least one letter and one digit; em…
 
 What: Password strength rule is minimum 8 characters with at least one letter and one digit; email is validated via `net/mail` and stored lowercased with a unique MongoDB index enforcing no duplicates · Why: — · Where: light-backend/internal/validate/validate.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-6 -->
+
+## Player color is validated as #RRGGBB or a preset name and always persisted/returned as lowercase `#rrggbb`
+
+What: Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange, purple, cyan, pink, white, black) and always persisted/returned as lowercase `#rrggbb`; new accounts start at `#ffffff` · Why: the client paints the player circle on a canvas, so a single hex form avoids every consumer re-mapping names to values; the preset list is a convenience for the UI picker · Where: light-backend/internal/validate/profile.go (`Color`, `DefaultColor`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-0 -->
+
+## Player name rule is 2–24 printable runes, trimmed, NOT unique
+
+What: Player name rule is 2–24 printable runes, trimmed, and not unique across players · Why: the work order requires the name to be changeable at any time and imposes no uniqueness; identity is the account email, not the display name · Where: light-backend/internal/validate/profile.go (`PlayerName`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-1 -->
+
+## Profile updates go through PATCH /profile binding a dedicated struct with only player_name and color
+
+What: Profile updates go through `PATCH /profile`, which binds a dedicated request struct containing only `player_name` and `color` (both optional, at least one required); unknown keys such as `victories` are ignored, and a request with any invalid field is rejected whole with 400 · Why: the record counters must be impossible to set from the client, and a field-restricted bind type guarantees that structurally instead of by a runtime check · Where: light-backend/internal/handlers/profile.go, light-backend/internal/store/store.go (`ProfileUpdate`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-2 -->
