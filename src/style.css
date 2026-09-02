@@ -1,0 +1,144 @@
+:root {
+  --bg: #0e0f13;
+  --panel: #171a21;
+  --panel-border: #262b36;
+  --ink: #e6e8ee;
+  --ink-dim: #8b93a7;
+  --accent: #e2554e;
+  --stage-bg: #05060a;
+  --bar: 56px; /* top/bottom bar height */
+  --side: 200px; /* left/right panel width */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Author display rules below would otherwise beat the UA [hidden] rule. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/*
+ * Layout: a grid whose center cell holds the canvas and whose surrounding
+ * cells hold the HTML UI. Because the UI lives in its own grid tracks, it can
+ * never overlap the canvas — the canvas only ever fills the center `.stage`.
+ */
+.app {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  grid-template-columns: var(--side) 1fr var(--side);
+  grid-template-rows: var(--bar) 1fr var(--bar);
+  grid-template-areas:
+    "top    top    top"
+    "left   stage  right"
+    "bottom bottom bottom";
+}
+
+.ui-bar {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  padding: 10px 14px;
+  overflow: auto;
+}
+
+.ui-top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ui-left {
+  grid-area: left;
+}
+.ui-right {
+  grid-area: right;
+}
+.ui-bottom {
+  grid-area: bottom;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.stage {
+  grid-area: stage;
+  /* Center the square canvas; leftover space is the letterbox around it. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  background: var(--stage-bg);
+  overflow: hidden;
+}
+
+.arena-canvas {
+  display: block;
+  /* Actual pixel size is set by the renderer; keep it from spilling out. */
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-dim);
+}
+
+.skill-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.9;
+}
+
+.ui-slot {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  margin: 6px 0;
+}
+
+/* Block screen — replaces the whole game when the device isn't supported. */
+.block-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+  text-align: center;
+}
+
+.block-card {
+  max-width: 420px;
+}
+
+.block-card h1 {
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+
+.block-card p {
+  color: var(--ink-dim);
+  line-height: 1.6;
+}

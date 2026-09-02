@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arena Duel</title>
+  </head>
+  <body>
+    <!-- Game shell: HTML UI is laid out AROUND the canvas, never over it. -->
+    <div id="app" class="app">
+      <header class="ui-bar ui-top">
+        <span class="brand">ARENA&nbsp;DUEL</span>
+        <span class="ui-slot" id="round-info">Best of — · Round —</span>
+      </header>
+
+      <aside class="ui-bar ui-left">
+        <h2>Skills</h2>
+        <ul class="skill-list">
+          <li>Dash</li>
+          <li>Slash</li>
+          <li>Bash</li>
+          <li>Shot</li>
+          <li>Shield</li>
+        </ul>
+      </aside>
+
+      <main class="stage" id="stage">
+        <!-- The arena. Kept square; scaled to fit the stage. -->
+        <canvas id="arena" class="arena-canvas"></canvas>
+      </main>
+
+      <aside class="ui-bar ui-right">
+        <h2>Status</h2>
+        <p class="ui-slot" id="hud">HP —/10</p>
+        <p class="ui-slot" id="coords">arena → screen ready</p>
+      </aside>
+
+      <footer class="ui-bar ui-bottom">
+        <span class="ui-slot" id="scale-info">scale —</span>
+      </footer>
+    </div>
+
+    <!-- Shown instead of the game on phones / too-small viewports. -->
+    <div id="block-screen" class="block-screen" hidden>
+      <div class="block-card">
+        <h1>Desktop only</h1>
+        <p id="block-message"></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
