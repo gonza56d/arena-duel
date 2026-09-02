@@ -18,11 +18,15 @@
 import type { ArenaViewport } from "./arena";
 import { CONFIG, type GameConfig } from "./config";
 import { createInput } from "./input";
+import { advanceRound, concludeRound, createMatch, roundOutcome, startNextRound, type Match } from "./sim/match";
+import { createNpc, npcRng, type Npc } from "./sim/npc";
 import { createRenderer, FX_LINGER_MS, type Renderer, type TimedEvent } from "./renderer";
 import type { Vec2 } from "./sim/geometry";
-import { createMatch, startNextRound, type Match } from "./sim/match";
 import type { SkillTriggers } from "./sim/skills";
 import { stepWorld, type PlayerInput, type World, type WorldInputs } from "./sim/world";
+
+/** Pause between the end of a round and the start of the next, in real ms. */
+export const ROUND_INTERMISSION_MS = 1_800;
 
 export interface InputOverride {
   move?: Vec2;
@@ -60,12 +64,16 @@ export interface GameOptions {
   config?: GameConfig;
   /** Called once per rendered frame, after simulation and drawing. */
   onFrame?: (world: World, viewport: ArenaViewport) => void;
+  /** Called once when a match finishes (the series is decided). */
+  onMatchOver?: (match: Match) => void;
 }
 
 export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Game {
   const config = opts.config ?? CONFIG;
   let match = createMatch({ seed: opts.seed, bestOf: opts.bestOf, config });
   const localPlayerId = match.world.players[0].id;
+  /** One controller per non-local player; rebuilt when a new match starts. */
+  let npcs: Npc[] = buildNpcs(match);
 
   const renderer: Renderer = createRenderer(canvas);
   const input = createInput(window, canvas, renderer.viewport);
@@ -78,15 +86,54 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let accumulator = 0;
   let queued: WorldInputs = {};
   const fx: TimedEvent[] = [];
+  /** Real ms left in the between-rounds pause (only counts while `roundOver`). */
+  let intermissionLeft = 0;
+  /** Guards the one-shot `onMatchOver`. */
+  let matchOverFired = false;
+
+  /** A fresh NPC controller for every player the local client does not drive. */
+  function buildNpcs(m: Match): Npc[] {
+    return m.world.players
+      .filter((p) => p.id !== localPlayerId)
+      .map((p) => createNpc(p.id, npcRng(m.seed, p.id)));
+  }
+
+  /** This tick's input for every NPC-controlled player. */
+  function npcInputs(world: World): WorldInputs {
+    const out: WorldInputs = {};
+    for (const npc of npcs) out[npc.playerId] = npc.decide(world, tickMs);
+    return out;
+  }
 
   /** Forget per-round transient state when the world is replaced. */
   function resetTransient(): void {
     accumulator = 0;
     queued = {};
     fx.length = 0;
+    intermissionLeft = 0;
   }
 
   function advance(elapsedMs: number, override: InputOverride = {}): void {
+    if (match.phase === "playing") simulate(elapsedMs, override);
+    else if (match.phase === "roundOver") {
+      // Freeze on the death frame, then start the next round after the pause.
+      intermissionLeft -= elapsedMs;
+      if (intermissionLeft <= 0) {
+        advanceRound(match);
+        resetTransient();
+      }
+    }
+    // `matchOver`: nothing simulates; the final frame stays on screen.
+
+    const world = match.world;
+    while (fx.length > 0 && fx[0].atMs < world.timeMs - FX_LINGER_MS) fx.shift();
+    renderer.draw(world, fx, localPlayerId);
+    opts.onFrame?.(world, renderer.viewport);
+  }
+
+  /** Consume real time as fixed ticks, feeding local + NPC input, until the
+   * round ends or the time budget is spent. */
+  function simulate(elapsedMs: number, override: InputOverride): void {
     const world = match.world;
     // Drop time we cannot catch up on rather than spiralling.
     accumulator = Math.min(accumulator + elapsedMs, tickMs * maxTicks);
@@ -107,10 +154,20 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
     let ran = false;
     while (accumulator >= tickMs) {
-      stepWorld(world, ran ? rest : first, tickMs);
+      // NPCs decide every tick against the live world; the local player's input
+      // (and, on the first tick, dev/dummy queued input) overrides theirs.
+      const inputs: WorldInputs = ran ? { ...npcInputs(world), ...rest } : { ...npcInputs(world), ...first };
+      stepWorld(world, inputs, tickMs);
       ran = true;
       accumulator -= tickMs;
       for (const e of world.events) fx.push({ ...e, atMs: world.timeMs });
+
+      const outcome = roundOutcome(world);
+      if (outcome) {
+        concludeRound(match, outcome.winnerId);
+        onRoundConcluded();
+        break; // stop stepping so the death frame holds
+      }
     }
     if (!ran) {
       // Nothing advanced this frame (very high frame rate): keep the one-shot
@@ -118,10 +175,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       queued = first;
       queued[localPlayerId] = { move: { x: 0, y: 0 }, skills: first[localPlayerId]?.skills };
     }
+  }
 
-    while (fx.length > 0 && fx[0].atMs < world.timeMs - FX_LINGER_MS) fx.shift();
-    renderer.draw(world, fx);
-    opts.onFrame?.(world, renderer.viewport);
+  /** React to a round that just ended: arm the pause, or finish the match. */
+  function onRoundConcluded(): void {
+    if (match.phase === "matchOver") {
+      if (!matchOverFired) {
+        matchOverFired = true;
+        opts.onMatchOver?.(match);
+      }
+    } else {
+      intermissionLeft = ROUND_INTERMISSION_MS;
+    }
   }
 
   function frame(now: number): void {
@@ -150,12 +215,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         : playerInput;
     },
     nextRound(): World {
+      // Dev helper: force a fresh round regardless of scoring.
       resetTransient();
-      return startNextRound(match);
+      const world = startNextRound(match);
+      match.phase = "playing";
+      match.lastRoundWinnerId = null;
+      return world;
     },
     newGame(seed?: number): Match {
       resetTransient();
+      matchOverFired = false;
       match = createMatch({ seed, bestOf: match.bestOf, config });
+      npcs = buildNpcs(match);
       return match;
     },
     stop(): void {

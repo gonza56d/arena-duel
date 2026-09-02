@@ -40,6 +40,12 @@ type profileUpdateRequest struct {
 	Color      *string `json:"color"`
 }
 
+// recordMatchRequest is the body of POST /profile/record: whether the player
+// won the finished match. The count of games played always rises by one.
+type recordMatchRequest struct {
+	Won bool `json:"won"`
+}
+
 // GetProfile returns the authenticated player's profile.
 func (h *Handler) GetProfile(c *gin.Context) {
 	u, ok := UserFromContext(c)
@@ -94,6 +100,40 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update profile"})
+		return
+	}
+	c.JSON(http.StatusOK, toProfile(updated))
+}
+
+// RecordMatch records a finished match for the authenticated player: it bumps
+// games_played, and victories too when won is true. This is the client's only
+// path to the record counters — the increment itself is server-owned, so a
+// tampered client cannot inflate its own record beyond one game per call.
+func (h *Handler) RecordMatch(c *gin.Context) {
+	u, ok := UserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req recordMatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.Users.IncrementRecord(c.Request.Context(), u.ID.Hex(), req.Won); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not record match"})
+		return
+	}
+
+	updated, err := h.Users.FindByID(c.Request.Context(), u.ID.Hex())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not load profile"})
 		return
 	}
 	c.JSON(http.StatusOK, toProfile(updated))

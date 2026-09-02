@@ -10,6 +10,7 @@ import { CONFIG, leveledStatIds, validateConfig, type StatId } from "./config";
 import { check } from "./deviceGate";
 import { startGame, type Game } from "./game";
 import { KEY_HINTS } from "./input";
+import { createProfileService } from "./profile";
 import { loadoutSpend, statValue, type Loadout } from "./sim/loadout";
 import type { Match } from "./sim/match";
 import { isDead } from "./sim/player";
@@ -28,8 +29,12 @@ const scaleInfo = document.getElementById("scale-info");
 const coordsInfo = document.getElementById("coords");
 const hud = document.getElementById("hud");
 const roundInfo = document.getElementById("round-info");
+const scoreInfo = document.getElementById("score-info");
+const matchStatus = document.getElementById("match-status");
 const buildLocal = document.getElementById("build-local");
 const buildRival = document.getElementById("build-rival");
+
+const profile = createProfileService();
 
 let game: Game | null = null;
 /** The match whose builds are currently shown in the sidebar. */
@@ -112,6 +117,33 @@ function updateHud(world: World): void {
   }
 }
 
+/** Score line and the round/match result banner, driven by the match phase. */
+function updateMatchHud(m: Match): void {
+  if (!game) return;
+  const localId = game.localPlayerId;
+  const rivalId = localId === 0 ? 1 : 0;
+  if (scoreInfo) scoreInfo.textContent = `You ${m.roundsWon[localId] ?? 0} – ${m.roundsWon[rivalId] ?? 0} Zombie`;
+
+  if (!matchStatus) return;
+  const outcome = (winnerId: number | null): "win" | "loss" | "draw" =>
+    winnerId === null ? "draw" : winnerId === localId ? "win" : "loss";
+
+  let text = "";
+  let kind: "win" | "loss" | "draw" | null = null;
+  if (m.phase === "roundOver") {
+    kind = outcome(m.lastRoundWinnerId);
+    text = { win: "Round won — next round…", loss: "Round lost — next round…", draw: "Round draw — next round…" }[kind];
+  } else if (m.phase === "matchOver") {
+    kind = outcome(m.matchWinnerId);
+    text = { win: "Match won!", loss: "Match lost", draw: "Match draw" }[kind];
+  }
+
+  matchStatus.hidden = kind === null;
+  matchStatus.textContent = text;
+  matchStatus.classList.toggle("win", kind === "win");
+  matchStatus.classList.toggle("loss", kind === "loss");
+}
+
 function onFrame(world: World, vp: ArenaViewport): void {
   if (game) {
     const m = game.match;
@@ -120,6 +152,7 @@ function onFrame(world: World, vp: ArenaViewport): void {
       renderMatch(m);
       shownMatch = m;
     }
+    updateMatchHud(m);
   }
   updateHud(world);
   if (scaleInfo) {
@@ -129,11 +162,21 @@ function onFrame(world: World, vp: ArenaViewport): void {
   }
 }
 
+/**
+ * A match finished: persist the result to the profile service. A draw counts as
+ * a game played but not a victory. Fire-and-forget — the service handles a
+ * missing session / unreachable backend on its own and never throws.
+ */
+function onMatchOver(m: Match): void {
+  const won = game !== null && m.matchWinnerId === game.localPlayerId;
+  void profile.recordMatch(won);
+}
+
 function showGame(): void {
   blockScreen.hidden = true;
   app.hidden = false;
   if (!game) {
-    game = startGame(canvas, { onFrame });
+    game = startGame(canvas, { onFrame, onMatchOver });
     exposeDebug(game);
   }
 }

@@ -320,3 +320,36 @@ export function sweepCircleRect(c: Circle, dir: Vec2, rect: Rect): number | null
 export function sweepCircleCircle(c: Circle, dir: Vec2, other: Circle): { entry: number; exit: number } | null {
   return rayCircle(c, dir, { x: other.x, y: other.y, r: other.r + c.r });
 }
+
+/**
+ * True when the segment `a→b` touches or crosses the axis-aligned rectangle
+ * (Liang–Barsky clipping). A segment that lies entirely inside the rectangle,
+ * or merely grazes an edge, counts as intersecting. Used for line-of-sight: a
+ * sight line is blocked when it intersects any obstacle.
+ */
+export function segmentIntersectsRect(a: Vec2, b: Vec2, rect: Rect): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let t0 = 0;
+  let t1 = 1;
+  // Each edge gives a constraint p·t ≤ q; clip the [t0, t1] parameter window.
+  const clip = (p: number, q: number): boolean => {
+    if (p === 0) return q >= 0; // parallel to this edge: inside the slab iff q ≥ 0
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+    return true;
+  };
+  return (
+    clip(-dx, a.x - rect.x) &&
+    clip(dx, rect.x + rect.w - a.x) &&
+    clip(-dy, a.y - rect.y) &&
+    clip(dy, rect.y + rect.h - a.y) &&
+    t0 <= t1
+  );
+}

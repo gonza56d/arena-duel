@@ -34,6 +34,7 @@ func NewRouter(users store.UserStore, tokens *auth.TokenIssuer) *gin.Engine {
 		protected.GET("/me", h.Me)
 		protected.GET("/profile", h.GetProfile)
 		protected.PATCH("/profile", h.UpdateProfile)
+		protected.POST("/profile/record", h.RecordMatch)
 	}
 
 	return r

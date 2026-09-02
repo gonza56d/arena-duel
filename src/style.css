@@ -175,6 +175,19 @@ h2 {
   margin: 6px 0;
 }
 
+/* Match/round result banner in the top bar; brightened so it reads at a glance. */
+.match-status {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+.match-status.win {
+  color: var(--good, #8ce24e);
+}
+.match-status.loss {
+  color: var(--bad, #e2554e);
+}
+
 /* Block screen — replaces the whole game when the device isn't supported. */
 .block-screen {
   position: fixed;

@@ -15,6 +15,7 @@ import { angleOf, degToRad } from "./sim/geometry";
 import { isDead, type PlayerState } from "./sim/player";
 import { isShieldUp } from "./sim/skills/shield";
 import { bladeAngle, swingProgress } from "./sim/skills/slash";
+import { canSee } from "./sim/vision";
 import type { World } from "./sim/world";
 
 const GRID_STEP_UNITS = 300; // reference grid every 300 units (7 × 7 cells).
@@ -50,8 +51,11 @@ const COLORS = {
 
 export interface Renderer {
   viewport: ArenaViewport;
-  /** Draw one frame of the given world with the recent effects. */
-  draw(world: World, fx?: readonly TimedEvent[]): void;
+  /**
+   * Draw one frame of the given world with the recent effects. When `viewerId`
+   * is given, fog of war hides rivals that player cannot see past the obstacles.
+   */
+  draw(world: World, fx?: readonly TimedEvent[], viewerId?: number): void;
   stop(): void;
 }
 
@@ -181,10 +185,24 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx!.fill();
   }
 
-  function drawPlayers(world: World): void {
-    for (const player of world.players) drawDashTrail(player);
+  /**
+   * Fog of war: from `viewerId`'s eyes, is `player` in view? A viewer always
+   * sees itself; a rival is hidden when every sight line to it is blocked by an
+   * obstacle. With no viewer (e.g. a headless/debug draw) everything is shown.
+   */
+  function isInView(world: World, player: PlayerState, viewerId?: number): boolean {
+    if (viewerId === undefined || player.id === viewerId) return true;
+    const viewer = world.players.find((p) => p.id === viewerId);
+    if (!viewer) return true;
+    return canSee(viewer.pos, { pos: player.pos, radius: player.radius }, world.obstacles);
+  }
 
-    for (const player of world.players) {
+  function drawPlayers(world: World, viewerId?: number): void {
+    const visible = world.players.filter((p) => isInView(world, p, viewerId));
+
+    for (const player of visible) drawDashTrail(player);
+
+    for (const player of visible) {
       const c = at(player.pos.x, player.pos.y);
       const r = px(player.radius);
       const dead = isDead(player);
@@ -293,11 +311,14 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
 
   return {
     viewport,
-    draw(world: World, fx: readonly TimedEvent[] = []): void {
+    draw(world: World, fx: readonly TimedEvent[] = [], viewerId?: number): void {
       ctx!.clearRect(0, 0, viewport.canvasCssWidth, viewport.canvasCssHeight);
       drawArena();
       drawObstacles(world);
-      drawPlayers(world);
+      // Fog hides rival bodies and their indicators; projectiles and transient
+      // effects in the open stay visible (a bullet mid-flight is legitimately
+      // seen even if the shooter is behind cover).
+      drawPlayers(world, viewerId);
       drawProjectiles(world);
       drawEffects(world, fx);
       drawBoundary();
