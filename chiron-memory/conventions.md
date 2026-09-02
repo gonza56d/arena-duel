@@ -57,3 +57,15 @@ What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not ju
 ## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
 
 What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
+
+## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
+
+What: `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.points` ≤ sum of each stat's max level · Why: guarantees a valid 16-point loadout is always constructible (every stat startable at 1, budget never unspendable or overflowing) before the generator even runs · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-5 -->
+
+## `statValue()` is the single bridge function that converts a loadout's 1-based level into…
+
+What: `statValue()` is the single bridge function that converts a loadout's 1-based level into the 0-indexed level-table lookup · Why/ · Why: — · Where: src/sim/loadout.ts · Learned: keeps the 1-based/0-indexed conversion in one place instead of scattering `-1` offsets across the codebase <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-7 -->
+
+## `validateLoadout()` returns every violation it finds, not just the first
+
+What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
