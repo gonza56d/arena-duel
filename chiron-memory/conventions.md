@@ -1,6 +1,6 @@
 # convention
 
-A rule, pattern or convention this project follows (naming, formats, repeated approach).
+A rule the codebase follows — naming, patterns, and where things live.
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -57,6 +57,10 @@ What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not ju
 ## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
 
 What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
+
+## `validateConfig` enforces a feasibility check that the point budget is between the number…
+
+What: `validateConfig` enforces a feasibility check that the point budget is between the number of leveled stats and the sum of their max levels (10 ≤ points ≤ 38 currently) · Why: guarantees any config change still allows a valid 1-per-stat minimum build without exceeding total max levels · Where: src/config.ts validateConfig <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-2 -->
 
 ## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
 
