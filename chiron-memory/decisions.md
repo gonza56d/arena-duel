@@ -2,18 +2,18 @@
 
 A choice made and the reasoning behind it — the path taken over the alternatives.
 
-## The Arena Duel client shell is built with Vite + vanilla TypeScript, no UI framework, wit…
+## Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rend…
 
-What: The Arena Duel client shell is built with Vite + vanilla TypeScript, no UI framework, with only `vite` and `typescript` as devDependencies · Why: lightest path to a TS canvas render loop with a dev server and production build; a framework adds nothing for this shell · Where: package.json, tsconfig.json (repo root) <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-0 -->
+What: Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rendering · Why: lightest path to a TS canvas render loop with dev server + production build; only needed devDeps were `vite` and `typescript` · Where: package.json, tsconfig.json, src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-1 -->
 
-## Auth uses stateless JWT (HS256) bearer tokens instead of DB-stored session tokens
+## Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any…
 
-What: Auth uses stateless JWT (HS256) bearer tokens instead of DB-stored session tokens · Why: avoids an extra sessions collection and fits v1 scope; trade-off accepted is no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go (TokenIssuer is the seam to swap for opaque DB tokens later) <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-0 -->
+What: Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any viewport below 800×600 CSS px, with an exact boundary (800×600 renders the game, 799×600 blocks it); re-evaluated live on resize · Why: — · Where: src/deviceGate.ts, wired in src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-4 -->
 
-## Passwords are hashed with bcrypt rather than argon2
+## Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, offi…
 
-What: Passwords are hashed with bcrypt rather than argon2 · Why: simpler and battle-tested, available via x/crypto, satisfies the 'strong salted algorithm' requirement without extra tuning · Where: light-backend/internal/auth/password.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
+What: Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, official MongoDB driver, bcrypt for password hashing, and JWT (HS256) bearer tokens · Why: Gin+MongoDB were suggested by the work order; bcrypt is simpler and as battle-tested as argon2 for meeting the 'strong salted algorithm' requirement · Where: light-backend/go.mod <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-0 -->
 
-## Signup in v1 does not send or require any email verification/mailing
+## Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions`…
 
-What: Signup in v1 does not send or require any email verification/mailing · Why: user explicitly said mailing is not needed yet, keeping v1 scope to email+password only · Where: light-backend/internal/handlers/handlers.go (signup flow) <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-10 -->
+What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
