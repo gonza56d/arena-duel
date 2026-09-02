@@ -1,6 +1,6 @@
 # config
 
-Setup and configuration — env vars, flags, how to run the project.
+Configuration knowledge: env vars, dependencies, build/deploy, where data lives.
 
 ## Project is run via `npm run dev` (Vite dev server), built via `npm run build` (tsc + vite…
 

@@ -1,6 +1,6 @@
 # decision
 
-A choice made and the reasoning behind it — the path taken over the alternatives.
+A technical decision that was made and WHY (which alternatives were discarded).
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -33,6 +33,38 @@ What: HP starts at `maxHp` and only ever changes by integers; `applyDamage` thro
 ## Unit tests use Vitest, colocated as `src/**/*.test.ts`, run with `npm test`
 
 What: Vitest is the test runner (devDependency); tests sit next to the code as `src/**/*.test.ts` and run with `npm test` (`vitest run`) · Why: the simulation is pure TypeScript with no DOM, so fast node tests cover the acceptance criteria directly (speed, edges, obstacles, HP) including config-override tests that prove one constant changes behaviour · Where: package.json scripts, src/config.test.ts, src/sim/*.test.ts · Learned: `tsconfig` includes `src`, so test files are type-checked by `npm run typecheck` too; Vite ignores them in builds because nothing imports them.
+
+## Skills read their numbers through `resolve*(loadout, cfg)` in src/sim/skills/stats.ts, which wraps `statValue`; Bash reads `CONFIG.skills.bash` directly
+
+What: `resolveDash/Slash/Shot/Shield(loadout, cfg)` gather one skill's numbers — leveled stats via `statValue(loadout, "skill.stat", cfg)` (1-based `Loadout` from src/sim/loadout.ts), fixed ones straight from the config — into a typed stats object; Bash has no leveled stats and reads `CONFIG.skills.bash` · Why: the skills work order first shipped its own 0-based `SkillLevels`, but the loadout work order landed the canonical `Loadout` (random 16-point builds per match, backend-shaped); merging kept one representation and one off-by-one bridge (`statValue`) while skill code keeps a single call per skill · Where: src/sim/skills/stats.ts, `PlayerState.loadout`, `createWorld({ loadouts })` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code; skill tests must pass explicit loadouts (`testLoadout` in src/sim/skills/loadout.testutil.ts) because `createWorld` rolls random builds otherwise.
+
+## Cooldown is the only gate between skill uses; it is set at the trigger tick and first decremented on the next tick
+
+What: `triggerX` checks `isReady` (remaining ≤ 0), then sets `cooldowns[x] = cooldownMs` and starts the skill; `tickCooldowns` runs at the start of each tick before triggers, so a press on the tick the counter reaches 0 counts · Why: acceptance criterion "no skill can be triggered while on cooldown"; since every cooldown ≥ wind-up + active time, the same gate also prevents re-triggering a skill mid-animation without a second state machine · Where: src/sim/skills/cooldowns.ts, src/sim/skills/index.ts (`triggerSkills`) · Learned: in tests, after a trigger the counter shows the full cooldown; N idle ticks later it shows `cooldown − N·tick` — count from the tick *after* the trigger.
+
+## Shield is a fixed 500 ms window (`shield.activeMs`) that follows the live pointer and blocks every damage source, including Bash
+
+What: Space raises the shield instantly for `CONFIG.skills.shield.activeMs` (500 ms, invented — the design doc gives no duration); the cooldown starts at activation; `shieldBlocks(defender, sourcePos, coneDeg)` checks the damage *source* (attacker centre for Slash/Bash, bullet centre for Shot) against a 90° cone around the defender's current `aimDir`; a blocked Bash also applies no slow · Why: hold-to-block would make the 8 s cooldown meaningless (perma-block) and the game is about reaction timing, so a short parry window fits; "blocks 100% of the damage" was read literally over the flavour text that names only slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts (`dealDamage` is the single damage path) · Learned: shields tick *after* all offense in the tick (`tickShields`), so a shield raised this tick protects the whole tick and one expiring protects through its last tick.
+
+## Bash is bound to `E`; Shot to Alt or ⌘; Dash to left Shift only; Slash to left/right mouse; Shield to Space
+
+What: key bindings live in src/input.ts (`SKILL_KEYS`, `MOUSE_BUTTONS`), not in CONFIG; Bash (unspecified in the design doc) uses `KeyE` · Why: the other skills use non-letter keys so WASD stays free; Ctrl was rejected because Ctrl+W/S/A/D fire browser shortcuts (close tab, save, bookmark) mid-fight — the same hazard exists for ⌘ (Shot) on macOS, so Alt is the safer of the two keys the doc names · Where: src/input.ts · Learned: skill presses are edge-triggered (`e.repeat` ignored) and consumed once per `Game.advance`; a frame that runs zero ticks carries the presses to the next frame so clicks are never lost at >100 fps.
+
+## Slash and Bash cones have their apex at the player's centre; range is the sector radius from the centre
+
+What: the blade is a segment from the player centre of length `range`; Bash's hit region is the sector of radius 63 from the centre; a target is hit when its circle overlaps the (blade-width-padded) sector · Why: simplest geometric reading of "cone by range + area"; measuring from the body edge would give Bash (63) more reach than Slash level 2 (59) · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts, `distancePointToSector` / `circleIntersectsSector` in src/sim/geometry.ts · Learned: reach along the aim = range + target radius (+ half blade width for Slash): 77.5 units for Slash level 1, 88 for Bash.
+
+## Slash, Shot and Bash lock their direction at the press; Shield follows the live pointer
+
+What: `triggerSlash/Shot/Bash` copy `p.aimDir` into the skill state; only the shield cone re-reads `aimDir` each hit · Why: a locked aim makes "click where you want to hit" predictable and keeps the sim deterministic per input sequence; the shield is described as "facing the pointer" (present tense) · Where: src/sim/skills/*.ts · Learned: the blade sweeps from `centre + area/2` (player's right in y-down screen space) to `centre − area/2` for the primary click, reverse for the secondary.
+
+## Shot `range` stays a stat (max travel) but defaults to 3000 ≥ arena diagonal so bullets fly until they hit something
+
+What: `CONFIG.skills.shot.range` is a per-level max travel distance after which the bullet fades (`bulletStop` reason "range"); the shipped table is flat 3000 · Why: the design doc lists Range as a Shot stat but gives no values, while the work order says the bullet flies until it hits an edge/obstacle/player — a cap beyond the diagonal satisfies both · Where: src/config.ts, src/sim/skills/shot.ts.
+
+## v1 exposes `POST /profile/record` for the client-computed match outcome — supersedes the earlier "IncrementRecord not over HTTP" decision
+
+What: a protected `POST /profile/record` (`{won: bool}`) route now maps to `Handler.RecordMatch` → `UserStore.IncrementRecord`; the client's `src/profile.ts` calls it on match end (best-effort: bearer token from `localStorage["arena.token"]`, base URL from `VITE_LIGHT_BACKEND_URL`, silently skipped when absent so the game never breaks) · Why: this work order's intent is explicit that "combat and outcome are computed client-side in v1; the result updates the profile counters", and v1 has no trusted game backend to make the increment call — so the only feasible v1 path is a client-reachable endpoint (acceptance 4). The server still owns the increment (one game per call; counters remain unbindable via PATCH) · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/router.go, src/profile.ts, src/main.ts (`onMatchOver`) · Learned: this knowingly trusts a client-reported win in v1; the README's server-authoritative rule ("if the client is corrupted, backend rules prevail") is deferred to the future game backend, which should become the caller and let this route be locked down. See contradictions.md.
 
 ## Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rend…
 
@@ -110,34 +142,42 @@ What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and th
 
 What: `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on each), then spends remaining points one at a time on a uniformly random non-maxed stat until the budget is exhausted · Why: satisfies the product intent that "different amounts of levels per skill stat are expected" while guaranteeing the full 16-point budget is always spent and no stat exceeds its max · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-8 -->
 
-## Skills read their numbers through `resolve*(loadout, cfg)` in src/sim/skills/stats.ts, which wraps `statValue`; Bash reads `CONFIG.skills.bash` directly
+## Shot's config `range` stat defaults to 3000 (≥ arena diagonal)
 
-What: `resolveDash/Slash/Shot/Shield(loadout, cfg)` gather one skill's numbers — leveled stats via `statValue(loadout, "skill.stat", cfg)` (1-based `Loadout` from src/sim/loadout.ts), fixed ones straight from the config — into a typed stats object; Bash has no leveled stats and reads `CONFIG.skills.bash` · Why: the skills work order first shipped its own 0-based `SkillLevels`, but the loadout work order landed the canonical `Loadout` (random 16-point builds per match, backend-shaped); merging kept one representation and one off-by-one bridge (`statValue`) while skill code keeps a single call per skill · Where: src/sim/skills/stats.ts, `PlayerState.loadout`, `createWorld({ loadouts })` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code; skill tests must pass explicit loadouts (`testLoadout` in src/sim/skills/loadout.testutil.ts) because `createWorld` rolls random builds otherwise.
+What: Shot's config `range` stat defaults to 3000 (≥ arena diagonal) · Why: README specs a range stat but the intent is bullets fly until they hit something in the current arena, not that they vanish mid-flight; range is kept as a per-level stat for future tuning but defaulted so it never cuts a bullet short · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-0 -->
 
-## Cooldown is the only gate between skill uses; it is set at the trigger tick and first decremented on the next tick
+## Shield has a fixed active window `shield.activeMs = 500`, starting the skill's cooldown t…
 
-What: `triggerX` checks `isReady` (remaining ≤ 0), then sets `cooldowns[x] = cooldownMs` and starts the skill; `tickCooldowns` runs at the start of each tick before triggers, so a press on the tick the counter reaches 0 counts · Why: acceptance criterion "no skill can be triggered while on cooldown"; since every cooldown ≥ wind-up + active time, the same gate also prevents re-triggering a skill mid-animation without a second state machine · Where: src/sim/skills/cooldowns.ts, src/sim/skills/index.ts (`triggerSkills`) · Learned: in tests, after a trigger the counter shows the full cooldown; N idle ticks later it shows `cooldown − N·tick` — count from the tick *after* the trigger.
+What: Shield has a fixed active window `shield.activeMs = 500`, starting the skill's cooldown the instant it activates · Why: README doesn't specify a shield duration; a fixed window was chosen over a hold-to-block-with-max-duration alternative · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-1 -->
 
-## Shield is a fixed 500 ms window (`shield.activeMs`) that follows the live pointer and blocks every damage source, including Bash
+## Dash's landing spot is planned entirely at the moment of the key press via swept-circle t…
 
-What: Space raises the shield instantly for `CONFIG.skills.shield.activeMs` (500 ms, invented — the design doc gives no duration); the cooldown starts at activation; `shieldBlocks(defender, sourcePos, coneDeg)` checks the damage *source* (attacker centre for Slash/Bash, bullet centre for Shot) against a 90° cone around the defender's current `aimDir`; a blocked Bash also applies no slow · Why: hold-to-block would make the 8 s cooldown meaningless (perma-block) and the game is about reaction timing, so a short parry window fits; "blocks 100% of the damage" was read literally over the flavour text that names only slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts (`dealDamage` is the single damage path) · Learned: shields tick *after* all offense in the tick (`tickShields`), so a shield raised this tick protects the whole tick and one expiring protects through its last tick.
+What: Dash's landing spot is planned entirely at the moment of the key press via swept-circle tests, not resolved incrementally during travel: obstacle/edge clamp is applied first, then the enemy rule (land just behind the enemy if dash distance exceeds centre-to-centre distance and the spot behind is clear, otherwise land in front) · Why: — · Where: src/sim/skills/dash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-10 -->
 
-## Bash is bound to `E`; Shot to Alt or ⌘; Dash to left Shift only; Slash to left/right mouse; Shield to Space
+## The 16-point stat budget lives in config's `build.points` section, which replaced `rounds…
 
-What: key bindings live in src/input.ts (`SKILL_KEYS`, `MOUSE_BUTTONS`), not in CONFIG; Bash (unspecified in the design doc) uses `KeyE` · Why: the other skills use non-letter keys so WASD stays free; Ctrl was rejected because Ctrl+W/S/A/D fire browser shortcuts (close tab, save, bookmark) mid-fight — the same hazard exists for ⌘ (Shot) on macOS, so Alt is the safer of the two keys the doc names · Where: src/input.ts · Learned: skill presses are edge-triggered (`e.repeat` ignored) and consumed once per `Game.advance`; a frame that runs zero ticks carries the presses to the next frame so clicks are never lost at >100 fps.
+What: The 16-point stat budget lives in config's `build.points` section, which replaced `rounds.statPointsPerPlayer` · Why: v1 needs one data-driven source for the point budget instead of splitting it across round config · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-14 -->
 
-## Slash and Bash cones have their apex at the player's centre; range is the sector radius from the centre
+## Bash's 50% slow refreshes its 1s duration when reapplied rather than stacking multiple sl…
 
-What: the blade is a segment from the player centre of length `range`; Bash's hit region is the sector of radius 63 from the centre; a target is hit when its circle overlaps the (blade-width-padded) sector · Why: simplest geometric reading of "cone by range + area"; measuring from the body edge would give Bash (63) more reach than Slash level 2 (59) · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts, `distancePointToSector` / `circleIntersectsSector` in src/sim/geometry.ts · Learned: reach along the aim = range + target radius (+ half blade width for Slash): 77.5 units for Slash level 1, 88 for Bash.
+What: Bash's 50% slow refreshes its 1s duration when reapplied rather than stacking multiple slows · Why: chosen while implementing Bash so repeated hits don't compound into an ever-longer slow · Where: src/sim/skills/bash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-18 -->
 
-## Slash, Shot and Bash lock their direction at the press; Shield follows the live pointer
+## Shield blocks 100% of damage from every skill including Bash, and a blocked Bash applies…
 
-What: `triggerSlash/Shot/Bash` copy `p.aimDir` into the skill state; only the shield cone re-reads `aimDir` each hit · Why: a locked aim makes "click where you want to hit" predictable and keeps the sim deterministic per input sequence; the shield is described as "facing the pointer" (present tense) · Where: src/sim/skills/*.ts · Learned: the blade sweeps from `centre + area/2` (player's right in y-down screen space) to `centre − area/2` for the primary click, reverse for the secondary.
+What: Shield blocks 100% of damage from every skill including Bash, and a blocked Bash applies no slow either · Why: "blocks 100% of damage" was read literally even though README flavour text only names slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-2 -->
 
-## Shot `range` stays a stat (max travel) but defaults to 3000 ≥ arena diagonal so bullets fly until they hit something
+## Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the ca…
 
-What: `CONFIG.skills.shot.range` is a per-level max travel distance after which the bullet fades (`bulletStop` reason "range"); the shipped table is flat 3000 · Why: the design doc lists Range as a Shot stat but gives no values, while the work order says the bullet flies until it hits an edge/obstacle/player — a cap beyond the diagonal satisfies both · Where: src/config.ts, src/sim/skills/shot.ts.
+What: Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the canvas's native context menu on right-click · Why: without suppression, right-clicking to swing would pop the browser context menu instead of triggering the skill · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-20 -->
 
-## v1 exposes `POST /profile/record` for the client-computed match outcome — supersedes the earlier "IncrementRecord not over HTTP" decision
+## Bash is bound to key `E`, not Ctrl
 
-What: a protected `POST /profile/record` (`{won: bool}`) route now maps to `Handler.RecordMatch` → `UserStore.IncrementRecord`; the client's `src/profile.ts` calls it on match end (best-effort: bearer token from `localStorage["arena.token"]`, base URL from `VITE_LIGHT_BACKEND_URL`, silently skipped when absent so the game never breaks) · Why: this work order's intent is explicit that "combat and outcome are computed client-side in v1; the result updates the profile counters", and v1 has no trusted game backend to make the increment call — so the only feasible v1 path is a client-reachable endpoint (acceptance 4). The server still owns the increment (one game per call; counters remain unbindable via PATCH) · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/router.go, src/profile.ts, src/main.ts (`onMatchOver`) · Learned: this knowingly trusts a client-reported win in v1; the README's server-authoritative rule ("if the client is corrupted, backend rules prevail") is deferred to the future game backend, which should become the caller and let this route be locked down. See contradictions.md.
+What: Bash is bound to key `E`, not Ctrl · Why: Ctrl+W/S/D fire browser shortcuts mid-fight; the same hazard exists for Cmd (used for Shot) on macOS, but Alt is the safe binding of the two names the README gives · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
+
+## The client posts match results to the backend best-effort: it reads a bearer token from l…
+
+What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
+
+## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
+
+What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
