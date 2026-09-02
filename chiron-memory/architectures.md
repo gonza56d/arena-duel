@@ -26,41 +26,10 @@ How the system is put together — layers, boundaries, and how data flows.
 - **Where**: `light-backend/internal/store/`, tests in `internal/server/router_test.go`.
 - **Learned**: same WO.
 
-## Client render shell: viewport mapping is the shared contract
+## The arena is a fixed 2100×2100-unit square; the client fits the whole arena into the brow…
 
-**What.** The client is split into small modules under `src/`:
-- `arena.ts` — `ArenaViewport`, the single source of truth for converting between
-  arena units and canvas CSS pixels (`arenaToScreen`, `screenToArena`,
-  `unitsToPixels`, `pixelsToUnits`, `contains`). Holds `scale` + letterbox
-  `offset`, recomputed on resize.
-- `renderer.ts` — owns the canvas: DPR-aware sizing, `ResizeObserver` + window
-  resize → recompute viewport, and the `requestAnimationFrame` loop. Draws the
-  arena (boundary, reference grid, a demo centre marker) through the viewport.
-- `deviceGate.ts` — pure `check()` returning ok/blocked + reason.
-- `main.ts` — entry: runs the gate, shows the block screen or starts the renderer,
-  re-evaluates on resize.
+What: The arena is a fixed 2100×2100-unit square; the client fits the whole arena into the browser window (scale = min(windowW, windowH) / 2100) rather than mapping 1 unit = 1 px · Why: the arena is larger than any supported viewport, so it must be scaled/letterboxed to fit · Where: src/arena.ts (`ArenaViewport` class) · Learned: this is the shared coordinate-mapping contract all future rendering (players, skills, fog-of-war) must use — call `arenaToScreen`/`screenToArena`/`unitsToPixels` rather than computing pixel positions independently. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-0 -->
 
-**Why.** Every later gameplay renderer (players, skills, fog, obstacles) must keep
-its state in arena units and draw only through `ArenaViewport`, so world logic is
-resolution-independent and only pixels change with the window. Isolating that
-mapping in one class is the load-bearing boundary for all future rendering.
+## The canvas is sized using devicePixelRatio (not just CSS pixels), with a ResizeObserver o…
 
-**Where.** `src/*.ts`, layout in `index.html` + `src/style.css`.
-
-**Learned.** 2026-09-02, initial client bootstrap.
-
-## HTML UI lives in grid tracks around the canvas (never over it)
-
-**What.** `index.html` uses a CSS grid (`.app`) with a center `stage` cell for the
-canvas and surrounding cells (top/left/right/bottom `.ui-bar`) for HTML UI. The
-canvas only ever fills the center cell; UI can structurally never overlap it. The
-block screen is a separate fixed overlay toggled via the `hidden` attribute
-(`[hidden]{display:none!important}` is set because `.app`/`.block-screen` display
-rules would otherwise beat the UA rule).
-
-**Why.** TECH_SPECS: UI must be around the canvas, not covering it. A grid makes
-non-overlap a layout invariant rather than something to police per element.
-
-**Where.** `src/style.css` (`.app` grid, `.stage`, `.ui-bar`, `[hidden]`).
-
-**Learned.** 2026-09-02.
+What: The canvas is sized using devicePixelRatio (not just CSS pixels), with a ResizeObserver on the canvas's container recomputing the ArenaViewport on every resize · Why: keeps rendering crisp on HiDPI/Retina displays and keeps the coordinate mapping in sync whenever the letterboxed canvas size changes · Where: src/renderer.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-6 -->
