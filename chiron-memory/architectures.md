@@ -2,41 +2,14 @@
 
 How the system is put together — layers, boundaries, and how data flows.
 
-## Client render shell: viewport mapping is the shared contract
+## The arena is a fixed 2100×2100-unit square; the whole arena is scaled/fit into the browse…
 
-**What.** The client is split into small modules under `src/`:
-- `arena.ts` — `ArenaViewport`, the single source of truth for converting between
-  arena units and canvas CSS pixels (`arenaToScreen`, `screenToArena`,
-  `unitsToPixels`, `pixelsToUnits`, `contains`). Holds `scale` + letterbox
-  `offset`, recomputed on resize.
-- `renderer.ts` — owns the canvas: DPR-aware sizing, `ResizeObserver` + window
-  resize → recompute viewport, and the `requestAnimationFrame` loop. Draws the
-  arena (boundary, reference grid, a demo centre marker) through the viewport.
-- `deviceGate.ts` — pure `check()` returning ok/blocked + reason.
-- `main.ts` — entry: runs the gate, shows the block screen or starts the renderer,
-  re-evaluates on resize.
+What: The arena is a fixed 2100×2100-unit square; the whole arena is scaled/fit into the browser window rather than mapping 1 arena unit = 1 pixel · Why: the arena is larger than any supported viewport, so it must be letterboxed/scaled to fit · Where: src/arena.ts (`ArenaViewport` class) · Learned: all later rendering (players, skills, fog-of-war) must go through `ArenaViewport.arenaToScreen`/`screenToArena`/`unitsToPixels` rather than drawing raw arena coordinates directly onto the canvas <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-1 -->
 
-**Why.** Every later gameplay renderer (players, skills, fog, obstacles) must keep
-its state in arena units and draw only through `ArenaViewport`, so world logic is
-resolution-independent and only pixels change with the window. Isolating that
-mapping in one class is the load-bearing boundary for all future rendering.
+## The page layout is a CSS grid with the canvas placed in a center cell and all UI bars/pan…
 
-**Where.** `src/*.ts`, layout in `index.html` + `src/style.css`.
+What: The page layout is a CSS grid with the canvas placed in a center cell and all UI bars/panels placed in the surrounding grid tracks · Why: this makes it structurally impossible for UI to overlap the canvas, instead of relying on z-index or visual convention alone · Where: index.html, src/style.css <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-2 -->
 
-**Learned.** 2026-09-02, initial client bootstrap.
+## The canvas is sized DPR-aware (crisp on HiDPI) and a `ResizeObserver` recomputes the `Are…
 
-## HTML UI lives in grid tracks around the canvas (never over it)
-
-**What.** `index.html` uses a CSS grid (`.app`) with a center `stage` cell for the
-canvas and surrounding cells (top/left/right/bottom `.ui-bar`) for HTML UI. The
-canvas only ever fills the center cell; UI can structurally never overlap it. The
-block screen is a separate fixed overlay toggled via the `hidden` attribute
-(`[hidden]{display:none!important}` is set because `.app`/`.block-screen` display
-rules would otherwise beat the UA rule).
-
-**Why.** TECH_SPECS: UI must be around the canvas, not covering it. A grid makes
-non-overlap a layout invariant rather than something to police per element.
-
-**Where.** `src/style.css` (`.app` grid, `.stage`, `.ui-bar`, `[hidden]`).
-
-**Learned.** 2026-09-02.
+What: The canvas is sized DPR-aware (crisp on HiDPI) and a `ResizeObserver` recomputes the `ArenaViewport` on every resize, driving a `requestAnimationFrame` render loop · Why: the arena must stay pixel-crisp and correctly scaled as the window or device pixel ratio changes, not just on initial load · Where: src/renderer.ts <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-6 -->
