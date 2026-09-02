@@ -41,3 +41,19 @@ What: `go.mongodb.org/mongo-driver/v2` appears as an indirect dependency in go.m
 ## The MongoDB Go driver's `InsertOne` does not write the generated ObjectID back into the p…
 
 What: The MongoDB Go driver's `InsertOne` does not write the generated ObjectID back into the passed struct automatically; the store code must extract it from the InsertOneResult and set it on the User manually · Why: — · Where: light-backend/internal/store/mongo.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-9 -->
+
+## `VITE_LIGHT_BACKEND_URL` is read by the browser, so under compose it must be the host-facing URL, not `http://backend:8080`
+
+What: the client resolves the backend base URL from `import.meta.env.VITE_LIGHT_BACKEND_URL` at runtime in the browser; `docker-compose.yml` therefore passes `http://localhost:8080` (the published port), not the compose-network hostname, which the browser cannot resolve · Where: src/profile.ts (`baseUrl`), docker-compose.yml (`client.environment`) · Learned: the same applies to the `prod` image build arg — it is baked for the browser's network, not the container's.
+
+## Vite inside Docker needs `--host 0.0.0.0`; without it the published port 5173 is unreachable from the host
+
+What: `npm run dev` binds to the container's loopback by default (there is no `vite.config`), so the `dev` image runs `npm run dev -- --host 0.0.0.0 --port 5173` · Where: Dockerfile (`dev` target CMD) · Learned: `make run-client` on the host keeps the plain `npm run dev`, where localhost is fine.
+
+## `go.mod` says `go 1.25.0` but local machines may run an older Go; `GOTOOLCHAIN=auto` downloads 1.25 on the first `go test`
+
+What: the backend module requires Go 1.25.0; with the default `GOTOOLCHAIN=auto` an older local Go (1.24 was observed) fetches the 1.25 toolchain on first `make test-backend`/`make run-backend`, so that first run is slow and needs network. The backend image pins `golang:1.25-alpine` for the same reason · Where: light-backend/go.mod, light-backend/Dockerfile · Learned: a "go: downloading go1.25.0" line during `make test` is expected, not a broken install.
+
+## Backend has no CORS middleware; browser calls from the Vite origin (:5173) to :8080 are blocked regardless of how things are started
+
+What: `router.go` registers no CORS headers, so `fetch` from `http://localhost:5173` to `http://localhost:8080` (POST + JSON + Authorization triggers a preflight) fails in the browser even though `curl` works and the compose/Makefile wiring is correct. Documented as a known limitation in the root README; fixing it (e.g. gin-contrib/cors) was deliberately left out of the Makefile/Docker work order · Where: light-backend/internal/server/router.go, README.md ("Known limitation") · Learned: when the client's `/profile/record` call "does nothing", check the browser console for a CORS error before suspecting the compose network.

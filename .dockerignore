@@ -1,0 +1,17 @@
+# Client image context: only what Vite needs.
+node_modules
+dist
+.git
+.gitignore
+.DS_Store
+.env
+.env.*
+light-backend
+chiron-memory
+.chiron
+.claude
+Makefile
+docker-compose.yml
+Dockerfile
+.dockerignore
+*.md

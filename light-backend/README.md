@@ -41,10 +41,22 @@ Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
 
 ## Configuration
 
-Copy `.env.example` to `.env` (see that file for each variable). `JWT_SECRET`
-is required; the rest have local-dev defaults.
+Copy `.env.example` to `.env` (see that file for each variable), or run `make env`
+from the repo root to do it with a generated `JWT_SECRET`. `JWT_SECRET` is
+required; the rest have local-dev defaults.
 
 ## Run
+
+From the repository root — MongoDB is started in Docker and `.env` is created
+from `.env.example` (with a random `JWT_SECRET`) on first run:
+
+```bash
+make run-backend      # backend only  -> http://localhost:8080
+make run              # backend + client
+make up               # whole stack in Docker Compose (see the root README)
+```
+
+Manually, without the Makefile:
 
 ```bash
 # Start MongoDB (example with Docker):
@@ -55,10 +67,14 @@ export $(grep -v '^#' .env | xargs)   # or use your preferred env loader
 go run ./cmd/server
 ```
 
+The `Dockerfile` in this directory builds a small non-root image
+(`docker build -t arena-duel-backend .`); it is what `docker-compose.yml` uses.
+
 ## Test
 
 ```bash
-go test ./...
+make test-backend     # from the repo root (make test runs client + backend)
+go test ./...         # or directly
 ```
 
 The handler tests run against an in-memory user store, so no MongoDB is

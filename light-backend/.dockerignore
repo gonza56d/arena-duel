@@ -1,0 +1,10 @@
+# Never bake local secrets or build output into the image.
+.env
+.env.*
+!.env.example
+bin/
+server
+*.out
+README.md
+Dockerfile
+.dockerignore

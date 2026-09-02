@@ -125,3 +125,11 @@ What: Slash's and Bash's cones use the player centre as the apex, with the skill
 ## Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is p…
 
 What: Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is pressed; Shield instead keeps following the live pointer for the whole time it's active · Why: — · Where: src/sim/skills/*.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-5 -->
+
+## Makefile targets self-document with a trailing `## description`, `##@ Section` lines group them, and the file stays GNU Make 3.81-compatible
+
+What: every public target line ends in `## one-line description`; `make help` is an awk pass over `$(MAKEFILE_LIST)` that prints `##@ Section` headers and each `target ## desc` pair, so a target without `##` is invisible in `help`. The Makefile must keep working on GNU Make 3.81 (macOS default): no `.ONESHELL`, `.RECIPEPREFIX`, `$(file …)`, `!=` or `::=`; multi-line recipes use `\` continuations with one shell · Why: `make help` is the discoverability contract of the work order, and macOS developers get 3.81 without Homebrew · Where: Makefile.
+
+## Client `Dockerfile` has `dev` (Vite dev server) and `prod` (nginx) targets; backend `Dockerfile` is a multi-stage non-root Alpine image
+
+What: root `Dockerfile`: `deps` (node:24-alpine, `npm ci`) → `dev` (copies sources, `CMD npm run dev -- --host 0.0.0.0 --port 5173`, used by compose) and `build` → `prod` (nginx:1.27-alpine serving `dist/`, the default target; `VITE_LIGHT_BACKEND_URL` is a build `ARG` there). `light-backend/Dockerfile`: golang:1.25-alpine build with `CGO_ENABLED=0`, alpine runtime as user `app`, `GIN_MODE=release`, busybox `wget` `HEALTHCHECK` on `/health`. Each context has a `.dockerignore` (root excludes `light-backend/`, `node_modules`, `.env*`; backend excludes `.env`, `bin/`) · Why: compose needs hot reload (dev server + bind mounts) while `docker build .` should still yield a deployable static image; the backend image must never bake a local `.env` · Where: Dockerfile, .dockerignore, light-backend/Dockerfile, light-backend/.dockerignore.

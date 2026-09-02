@@ -3,6 +3,78 @@
 Arena duel is a 2D very addictive combat game on which you have to use your skills and reflex to beat your rivals.
 
 
+## Getting started
+
+Arena Duel has two components: the browser client (Vite + TypeScript, repo root)
+and the light backend (Go + Gin + MongoDB, `light-backend/`). The root
+`Makefile` and `docker-compose.yml` are the only entry points you need — no
+hand-typed `npm` or `go` commands.
+
+### Prerequisites
+
+- **Local run/test**: Node.js 20+ with npm, Go 1.25+ (an older Go with the
+  default `GOTOOLCHAIN=auto` downloads 1.25 on first use), and Docker — used
+  only to run MongoDB.
+- **Docker-only workflow**: Docker with Compose v2.
+
+### Makefile
+
+`make` (or `make help`) lists every target with a one-line description.
+
+| Target | What it does |
+| ------ | ------------ |
+| `make install` | Install client dependencies (`npm ci`) and download Go modules. |
+| `make run` | Start MongoDB (Docker), the backend and the Vite dev server together. Ctrl-C stops everything. |
+| `make run-client` | Vite dev server only → <http://localhost:5173>. |
+| `make run-backend` | Backend only → <http://localhost:8080> (starts MongoDB first). |
+| `make mongo` / `make mongo-down` | Start / stop only the MongoDB container. |
+| `make test` | Client tests (vitest) **and** backend tests (`go test ./...`). Fails if either fails. |
+| `make test-client` / `make test-backend` | One suite at a time. |
+| `make typecheck` | `tsc --noEmit` on the client. |
+| `make build` | Production client build to `dist/`, backend binary to `light-backend/bin/server`. |
+| `make up` / `make down` | Start / stop the full Docker Compose stack (see below). |
+| `make docker-build` | Build the client and backend Docker images. |
+| `make logs` | Follow the compose stack's logs. |
+| `make clean` / `make docker-clean` | Remove build output / remove the compose stack **including the MongoDB volume**. |
+
+**Environment.** The first `make run` / `make run-backend` (or `make env`)
+creates `light-backend/.env` from `.env.example` with a randomly generated
+`JWT_SECRET`. Edit that file if you need other values (`PORT`, `MONGO_URI`,
+`MONGO_DB`). If you run your own MongoDB, point `MONGO_URI` at it and use
+`WITH_MONGO=0 make run` to skip the Docker one.
+
+### Docker Compose
+
+```bash
+docker compose up --build      # or: make up
+```
+
+brings up three services, wired together, with no manual setup:
+
+| Service | URL | Notes |
+| ------- | --- | ----- |
+| `client` | <http://localhost:5173> | Vite dev server; `src/` and `index.html` are bind-mounted, so edits hot-reload. |
+| `backend` | <http://localhost:8080> | `GET /health` for liveness. Waits for MongoDB to be healthy. |
+| `mongo` | `mongodb://localhost:27017` | `mongo:7`, data persisted in the `mongo-data` volume. |
+
+The backend's configuration mirrors `light-backend/.env.example` and is set in
+`docker-compose.yml`, with `MONGO_URI` pointed at the `mongo` service. Nothing
+is required, but two values can be overridden from the shell or a git-ignored
+root `.env` file:
+
+| Variable | Default | When to change it |
+| -------- | ------- | ----------------- |
+| `JWT_SECRET` | dev-only placeholder | Anything that isn't a local dev machine. |
+| `VITE_LIGHT_BACKEND_URL` | `http://localhost:8080` | The URL the **browser** uses to reach the backend (host-facing, not the compose network). |
+
+Images: `light-backend/Dockerfile` (multi-stage Go build, non-root Alpine
+runtime) and the root `Dockerfile` (`dev` target = Vite dev server, used by
+compose; default `prod` target = static build served by nginx).
+
+Known limitation: the backend sends no CORS headers yet, so browser requests
+from `:5173` to `:8080` are blocked by the browser. This is independent of how
+the services are started.
+
 ## The Map
 
 The map is a square with random obstacles on which you have to take advantage to beat your rival. Fog of war will not let you see your rival if they're hidden using the obstacles.

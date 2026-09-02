@@ -1,0 +1,62 @@
+# Arena Duel — full development stack: MongoDB + Go backend + Vite client.
+#
+#   docker compose up --build        (or: make up)
+#
+#   client   http://localhost:5173
+#   backend  http://localhost:8080      (GET /health)
+#   mongo    mongodb://localhost:27017  (also used by `make run` on the host)
+#
+# Nothing has to be configured. The backend env mirrors light-backend/.env.example
+# with MONGO_URI pointed at the mongo service. JWT_SECRET has a dev-only default;
+# override it for anything non-local by exporting it or putting it in a root
+# `.env` file (compose reads that file for ${...} interpolation; it is git-ignored).
+
+name: arena-duel
+
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  backend:
+    build: ./light-backend
+    environment:
+      PORT: "8080"
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: arena_duel
+      JWT_SECRET: ${JWT_SECRET:-arena-duel-dev-secret-change-me-outside-local}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      target: dev
+    environment:
+      # Used by the browser, not by the container, so it must be the host-facing URL.
+      VITE_LIGHT_BACKEND_URL: ${VITE_LIGHT_BACKEND_URL:-http://localhost:8080}
+    ports:
+      - "5173:5173"
+    volumes:
+      # Hot reload: sources are mounted over the image copy; node_modules stays in the image.
+      - ./src:/app/src
+      - ./index.html:/app/index.html
+      - ./tsconfig.json:/app/tsconfig.json
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
