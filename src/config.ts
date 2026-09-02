@@ -111,7 +111,12 @@ export interface SlashConfig {
 
 export interface ShotConfig {
   cooldownMs: Levels;
-  /** Bullet travel distance, in units. Level table left flat until tuned. */
+  /**
+   * Maximum bullet travel distance, in units, after which the bullet fades.
+   * The bullet always stops at the first edge, obstacle or player it hits; a
+   * value ≥ the arena diagonal therefore means "flies until it hits something".
+   * Level table left flat until tuned.
+   */
   range: Levels;
   /** Integer HP removed on hit. */
   damage: Levels;
@@ -125,11 +130,17 @@ export interface ShotConfig {
 
 export interface ShieldConfig {
   cooldownMs: Levels;
-  /** Fraction of damage blocked (1 = 100%). */
+  /** Fraction of damage blocked (1 = 100%). Blocked damage is floored to an integer. */
   blockFraction: number;
   /** Protected cone facing the pointer, in degrees. */
   coneDeg: number;
+  /** Delay before the shield is up. The design doc says none. */
   windupMs: number;
+  /**
+   * How long the shield stays up after activation. Not in the design doc; the
+   * cooldown starts at activation so this is the block window per use.
+   */
+  activeMs: number;
 }
 
 export interface BashConfig {
@@ -216,7 +227,7 @@ export const CONFIG: GameConfig = {
     },
     shot: {
       cooldownMs: [10_000, 9_000, 8_000, 7_000],
-      range: [700, 700, 700, 700],
+      range: [3_000, 3_000, 3_000, 3_000],
       damage: [2, 3, 4],
       windupMs: 50,
       travelArenaSideMs: 1_000,
@@ -227,6 +238,7 @@ export const CONFIG: GameConfig = {
       blockFraction: 1,
       coneDeg: 90,
       windupMs: 0,
+      activeMs: 500,
     },
     bash: {
       cooldownMs: 5_000,
@@ -245,6 +257,21 @@ export const CONFIG: GameConfig = {
 /** Movement speed in units per millisecond, derived from the doc's "per 100 ms". */
 export function moveSpeedUnitsPerMs(cfg: GameConfig = CONFIG): number {
   return cfg.player.moveSpeedUnitsPer100ms / 100;
+}
+
+/** Bullet speed in units per millisecond: one arena side per `travelArenaSideMs`. */
+export function bulletSpeedUnitsPerMs(cfg: GameConfig = CONFIG): number {
+  return cfg.arena.size / cfg.skills.shot.travelArenaSideMs;
+}
+
+/** Bullet radius in units: `bulletWidthRatio` of the player's diameter, halved. */
+export function bulletRadius(cfg: GameConfig = CONFIG): number {
+  return (cfg.player.radius * 2 * cfg.skills.shot.bulletWidthRatio) / 2;
+}
+
+/** Sword blade width in units: `bladeWidthRatio` of the player's diameter. */
+export function bladeWidth(cfg: GameConfig = CONFIG): number {
+  return cfg.player.radius * 2 * cfg.skills.slash.bladeWidthRatio;
 }
 
 /* ---------------------------------------------------------- validation ---- */
@@ -335,6 +362,7 @@ export function validateConfig(cfg: GameConfig = CONFIG): void {
   }
   positive("skills.shield.coneDeg", skills.shield.coneDeg);
   nonNegative("skills.shield.windupMs", skills.shield.windupMs);
+  positive("skills.shield.activeMs", skills.shield.activeMs);
 
   positive("skills.bash.cooldownMs", skills.bash.cooldownMs);
   positive("skills.bash.damage", skills.bash.damage);

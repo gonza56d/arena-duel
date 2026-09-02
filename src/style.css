@@ -107,8 +107,46 @@ h2 {
 
 .skill-list {
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
   line-height: 1.9;
+}
+
+.skill-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name cd"
+    "key key";
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.skill-list .skill-name {
+  grid-area: name;
+}
+
+.skill-list kbd {
+  grid-area: key;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
+.skill-list .cd {
+  grid-area: cd;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: #6fd08c;
+}
+
+.skill-list li.cooling .cd {
+  color: var(--accent);
+}
+
+.skill-list li.active .skill-name {
+  color: #ffe9a8;
 }
 
 .ui-slot {

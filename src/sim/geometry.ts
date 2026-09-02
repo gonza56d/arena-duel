@@ -144,3 +144,179 @@ export function resolveCircleCircle(a: Circle, b: Circle): Vec2 | null {
   const push = minDist - dist + CONTACT_SKIN;
   return { x: (dx / dist) * push, y: (dy / dist) * push };
 }
+
+/* ----------------------------------------------------------------- angles -- */
+
+export const TAU = Math.PI * 2;
+
+export function degToRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/** Angle of a vector in radians, in (-π, π]. Screen convention: y grows downwards. */
+export function angleOf(v: Vec2): number {
+  return Math.atan2(v.y, v.x);
+}
+
+/** Unit vector at the given angle. */
+export function fromAngle(rad: number): Vec2 {
+  return { x: Math.cos(rad), y: Math.sin(rad) };
+}
+
+/** Signed smallest difference `b - a`, wrapped into [-π, π]. */
+export function angleDiff(a: number, b: number): number {
+  let d = (b - a) % TAU;
+  if (d > Math.PI) d -= TAU;
+  if (d < -Math.PI) d += TAU;
+  return d;
+}
+
+export function dot(a: Vec2, b: Vec2): number {
+  return a.x * b.x + a.y * b.y;
+}
+
+export function sub(a: Vec2, b: Vec2): Vec2 {
+  return { x: a.x - b.x, y: a.y - b.y };
+}
+
+/**
+ * True when `point` lies within the cone of half-angle `halfAngleRad` around
+ * `dir` as seen from `origin` (distance is ignored). A point at the origin
+ * counts as inside.
+ */
+export function withinCone(origin: Vec2, dir: Vec2, halfAngleRad: number, point: Vec2): boolean {
+  const to = sub(point, origin);
+  if (to.x === 0 && to.y === 0) return true;
+  return Math.abs(angleDiff(angleOf(dir), angleOf(to))) <= halfAngleRad + 1e-12;
+}
+
+/** Shortest distance from `p` to the segment `ab`. */
+export function distancePointToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const ab = sub(b, a);
+  const len2 = dot(ab, ab);
+  if (len2 === 0) return distance(p, a);
+  const t = clamp(dot(sub(p, a), ab) / len2, 0, 1);
+  return distance(p, { x: a.x + ab.x * t, y: a.y + ab.y * t });
+}
+
+/**
+ * Shortest distance from `p` to a circular sector ("pie slice") with apex
+ * `apex`, radius `radius`, spanning the angles from `fromRad` to `toRad`
+ * (any order, |span| ≤ 2π). Zero when the point is inside the sector.
+ *
+ * This is exactly the region swept by a blade of length `radius` rotating
+ * about the apex between the two angles, so "circle intersects the swept
+ * blade" is `distancePointToSector(centre) <= circleRadius`.
+ */
+export function distancePointToSector(p: Vec2, apex: Vec2, fromRad: number, toRad: number, radius: number): number {
+  const to = sub(p, apex);
+  const d = length(to);
+  const span = Math.abs(angleDiff(fromRad, toRad));
+  const lo = angleDiff(fromRad, toRad) >= 0 ? fromRad : toRad;
+  const hi = lo === fromRad ? toRad : fromRad;
+
+  if (d > 0) {
+    const off = angleDiff(lo, angleOf(to));
+    // Inside the angular span (offset measured from the lower edge going the short way).
+    if (off >= -1e-12 && off <= span + 1e-12) return Math.max(0, d - radius);
+  } else {
+    return 0;
+  }
+
+  const edgeA = { x: apex.x + Math.cos(lo) * radius, y: apex.y + Math.sin(lo) * radius };
+  const edgeB = { x: apex.x + Math.cos(hi) * radius, y: apex.y + Math.sin(hi) * radius };
+  return Math.min(distancePointToSegment(p, apex, edgeA), distancePointToSegment(p, apex, edgeB));
+}
+
+/**
+ * True when circle `c` overlaps the sector (apex, centre direction `dir`,
+ * half-angle, radius). Used for cone-shaped hits (Bash, Slash).
+ */
+export function circleIntersectsSector(c: Circle, apex: Vec2, dir: Vec2, halfAngleRad: number, radius: number): boolean {
+  const a = angleOf(dir);
+  return distancePointToSector(c, apex, a - halfAngleRad, a + halfAngleRad, radius) <= c.r;
+}
+
+/* ----------------------------------------------------------------- sweeps -- */
+
+/**
+ * Swept-circle tests: a circle of radius `c.r` starting at `c` moves along the
+ * unit vector `dir`. Each returns the travel distance `t ≥ 0` at which contact
+ * first happens (or the entry/exit pair), or `null` when the path is clear.
+ * Shapes already touching at t = 0 report 0.
+ */
+
+/** Distance until the circle touches the arena edge (always finite for a non-zero dir). */
+export function sweepCircleSquare(c: Circle, dir: Vec2, size: number): number {
+  let t = Infinity;
+  if (dir.x > 0) t = Math.min(t, (size - c.r - c.x) / dir.x);
+  if (dir.x < 0) t = Math.min(t, (c.r - c.x) / dir.x);
+  if (dir.y > 0) t = Math.min(t, (size - c.r - c.y) / dir.y);
+  if (dir.y < 0) t = Math.min(t, (c.r - c.y) / dir.y);
+  return Math.max(0, t);
+}
+
+/** Ray vs axis-aligned rectangle (slab test). Returns entry distance or null. */
+export function rayRect(origin: Vec2, dir: Vec2, rect: Rect): number | null {
+  let tmin = -Infinity;
+  let tmax = Infinity;
+  const axes: [number, number, number, number][] = [
+    [origin.x, dir.x, rect.x, rect.x + rect.w],
+    [origin.y, dir.y, rect.y, rect.y + rect.h],
+  ];
+  for (const [o, d, lo, hi] of axes) {
+    if (d === 0) {
+      if (o < lo || o > hi) return null;
+    } else {
+      let t1 = (lo - o) / d;
+      let t2 = (hi - o) / d;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+      if (tmin > tmax) return null;
+    }
+  }
+  if (tmax < 0) return null;
+  return Math.max(0, tmin);
+}
+
+/** Ray vs circle. Returns the entry and exit distances, or null when missed / entirely behind. */
+export function rayCircle(origin: Vec2, dir: Vec2, circle: Circle): { entry: number; exit: number } | null {
+  const oc = sub(origin, circle);
+  const b = dot(oc, dir);
+  const cc = dot(oc, oc) - circle.r * circle.r;
+  const disc = b * b - cc;
+  if (disc < 0) return null;
+  const s = Math.sqrt(disc);
+  const exit = -b + s;
+  if (exit < 0) return null;
+  return { entry: Math.max(0, -b - s), exit };
+}
+
+/**
+ * Swept circle vs rectangle: exact Minkowski sum (rectangle grown by `r` with
+ * rounded corners) = union of two axis-grown rectangles and four corner circles.
+ */
+export function sweepCircleRect(c: Circle, dir: Vec2, rect: Rect): number | null {
+  const r = c.r;
+  let best: number | null = null;
+  const consider = (t: number | null): void => {
+    if (t !== null && (best === null || t < best)) best = t;
+  };
+  consider(rayRect(c, dir, { x: rect.x - r, y: rect.y, w: rect.w + 2 * r, h: rect.h }));
+  consider(rayRect(c, dir, { x: rect.x, y: rect.y - r, w: rect.w, h: rect.h + 2 * r }));
+  for (const corner of [
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.w, y: rect.y },
+    { x: rect.x, y: rect.y + rect.h },
+    { x: rect.x + rect.w, y: rect.y + rect.h },
+  ]) {
+    consider(rayCircle(c, dir, { ...corner, r })?.entry ?? null);
+  }
+  return best;
+}
+
+/** Swept circle vs circle: entry/exit distances of the moving circle, or null. */
+export function sweepCircleCircle(c: Circle, dir: Vec2, other: Circle): { entry: number; exit: number } | null {
+  return rayCircle(c, dir, { x: other.x, y: other.y, r: other.r + c.r });
+}

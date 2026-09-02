@@ -12,6 +12,19 @@
  */
 import { CONFIG, type GameConfig } from "../config";
 import type { Vec2 } from "./geometry";
+import type { BashState } from "./skills/bash";
+import { zeroCooldowns, type Cooldowns } from "./skills/cooldowns";
+import type { DashState } from "./skills/dash";
+import type { ShieldState } from "./skills/shield";
+import type { ShotState } from "./skills/shot";
+import type { SlashState } from "./skills/slash";
+import { defaultSkillLevels, validateSkillLevels, type SkillLevels } from "./skills/stats";
+
+/** A temporary movement-speed reduction (Bash). Re-applying refreshes, never stacks. */
+export interface SlowEffect {
+  remainingMs: number;
+  speedMultiplier: number;
+}
 
 export interface PlayerState {
   id: number;
@@ -20,11 +33,30 @@ export interface PlayerState {
   hp: number;
   /** Time accumulated towards the next heal tick. */
   healTimerMs: number;
-  /** Unit vector of the last non-zero movement (used by Dash later). */
+  /** Unit vector of the last non-zero movement; Dash uses it when idle. */
   lastMoveDir: Vec2;
+  /** Unit vector from the player towards the pointer; aimed skills use it. */
+  aimDir: Vec2;
+  /** This player's build: a level index per levelled stat. */
+  levels: SkillLevels;
+  /** Remaining cooldown per skill, in ms (0 = ready). */
+  cooldowns: Cooldowns;
+  slow: SlowEffect | null;
+  /** In-progress skills (null when idle). */
+  dash: DashState | null;
+  slash: SlashState | null;
+  shot: ShotState | null;
+  bash: BashState | null;
+  shield: ShieldState | null;
 }
 
-export function createPlayer(id: number, pos: Vec2, cfg: GameConfig = CONFIG): PlayerState {
+export function createPlayer(
+  id: number,
+  pos: Vec2,
+  cfg: GameConfig = CONFIG,
+  levels: SkillLevels = defaultSkillLevels(),
+): PlayerState {
+  validateSkillLevels(levels, cfg);
   return {
     id,
     pos: { x: pos.x, y: pos.y },
@@ -32,6 +64,15 @@ export function createPlayer(id: number, pos: Vec2, cfg: GameConfig = CONFIG): P
     hp: cfg.player.maxHp,
     healTimerMs: 0,
     lastMoveDir: { x: 1, y: 0 },
+    aimDir: { x: 1, y: 0 },
+    levels,
+    cooldowns: zeroCooldowns(),
+    slow: null,
+    dash: null,
+    slash: null,
+    shot: null,
+    bash: null,
+    shield: null,
   };
 }
 
@@ -83,4 +124,30 @@ export function tickHeal(p: PlayerState, dtMs: number, cfg: GameConfig = CONFIG)
     applyHeal(p, healAmount, cfg);
   }
   if (p.hp >= maxHp) p.healTimerMs = 0;
+}
+
+/* ------------------------------------------------------------------- slow -- */
+
+/** Slow the player for `durationMs`; a fresh slow replaces any running one. */
+export function applySlow(p: PlayerState, durationMs: number, speedMultiplier: number): void {
+  p.slow = { remainingMs: durationMs, speedMultiplier };
+}
+
+/** Current movement-speed multiplier (1 when not slowed). */
+export function speedMultiplier(p: PlayerState): number {
+  return p.slow ? p.slow.speedMultiplier : 1;
+}
+
+/**
+ * Count the slow down. Called at the *start* of a tick, and the effect lapses
+ * only once its counter has already reached 0, so a slow applied during tick k
+ * scales movement for exactly `durationMs / tickMs` ticks starting at k + 1.
+ */
+export function tickSlow(p: PlayerState, dtMs: number): void {
+  if (!p.slow) return;
+  if (p.slow.remainingMs <= 0) {
+    p.slow = null;
+    return;
+  }
+  p.slow.remainingMs = Math.max(0, p.slow.remainingMs - dtMs);
 }

@@ -53,3 +53,11 @@ What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not ju
 ## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
 
 What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
+
+## Skill tests drive the sim only through `createWorld` + `stepWorld` with explicit `PlayerInput` objects; geometry set up by writing `players[i].pos` directly
+
+What: every skill test builds a world with obstacle generation disabled (`countMin/Max: 0`), places players by assigning `pos`, aims via one `stepWorld` with `aim`, then presses via `skills` flags and steps ticks; helpers like `timeToHit` return elapsed ms · Why: exercises the real tick order (aim → cooldown → trigger → move → offense → shields) instead of calling `trigger*` directly, so ordering bugs show up · Where: src/sim/skills/*.test.ts · Learned: `world.events` is cleared every tick, so assert on events *before* stepping again; `tsconfig` targets ES2020, so `Array.prototype.at` is unavailable in tests.
+
+## Renderer-only constants (colours, `FX_LINGER_MS`) live in src/renderer.ts; the game loop collects `world.events` into a `TimedEvent[]` for fades
+
+What: `Game.advance` appends each tick's events with `atMs = world.timeMs` and prunes those older than `FX_LINGER_MS`; the renderer fades them by age. Skill visuals otherwise read sim state (`dash.from`, `bladeAngle(slash)`, `isShieldUp`, `projectiles`) · Why: the sim stays free of presentation timing while still giving the renderer transient hits/impacts to show · Where: src/game.ts, src/renderer.ts.

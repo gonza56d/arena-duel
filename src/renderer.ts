@@ -2,13 +2,27 @@
  * Canvas renderer: sizes the canvas to a square that fits the stage, keeps it
  * crisp on HiDPI displays, and draws a {@link World} through the shared
  * {@link ArenaViewport} mapping. It owns no timing — the game loop calls
- * `draw(world)` once per frame.
+ * `draw(world, fx)` once per frame.
+ *
+ * Skill visuals read the simulation state directly (dash trail, blade angle,
+ * shield arc, bullets) plus the recent world events (hit flashes, bullet
+ * impacts, bash cones). Presentation-only constants (colours, flash duration)
+ * live here; every gameplay number still comes from the world's config.
  */
 import { ARENA_SIZE, ArenaViewport } from "./arena";
-import { isDead } from "./sim/player";
+import type { WorldEvent } from "./sim/events";
+import { angleOf, degToRad } from "./sim/geometry";
+import { isDead, type PlayerState } from "./sim/player";
+import { isShieldUp } from "./sim/skills/shield";
+import { bladeAngle, swingProgress } from "./sim/skills/slash";
 import type { World } from "./sim/world";
 
 const GRID_STEP_UNITS = 300; // reference grid every 300 units (7 × 7 cells).
+
+/** How long a one-off effect (hit flash, impact, bash cone) stays visible, in sim ms. */
+export const FX_LINGER_MS = 350;
+
+export type TimedEvent = WorldEvent & { atMs: number };
 
 const COLORS = {
   arena: "#0b1a14",
@@ -18,13 +32,26 @@ const COLORS = {
   obstacleEdge: "#3d4a5e",
   players: ["#e2554e", "#4e9de2", "#e2c34e", "#8ce24e"],
   dead: "rgba(140, 140, 140, 0.45)",
-  facing: "rgba(255, 255, 255, 0.55)",
+  facing: "rgba(255, 255, 255, 0.35)",
+  aim: "rgba(255, 255, 255, 0.8)",
+  slow: "rgba(90, 160, 255, 0.9)",
+  shield: "rgba(120, 220, 255, 0.85)",
+  shieldFill: "rgba(120, 220, 255, 0.18)",
+  blade: "rgba(255, 245, 200, 0.95)",
+  swept: "rgba(255, 245, 200, 0.18)",
+  windup: "rgba(255, 245, 200, 0.35)",
+  bash: "rgba(255, 170, 60, 0.45)",
+  bullet: "#ffe9a8",
+  dash: "rgba(255, 255, 255, 0.25)",
+  hit: "rgba(255, 80, 80, 0.9)",
+  blocked: "rgba(120, 220, 255, 0.9)",
+  impact: "rgba(255, 233, 168, 0.8)",
 };
 
 export interface Renderer {
   viewport: ArenaViewport;
-  /** Draw one frame of the given world. */
-  draw(world: World): void;
+  /** Draw one frame of the given world with the recent effects. */
+  draw(world: World, fx?: readonly TimedEvent[]): void;
   stop(): void;
 }
 
@@ -56,8 +83,11 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     viewport.resize(cssSize, cssSize);
   }
 
+  const px = (units: number): number => viewport.unitsToPixels(units);
+  const at = (x: number, y: number): { x: number; y: number } => viewport.arenaToScreen(x, y);
+
   function drawArena(): void {
-    const topLeft = viewport.arenaToScreen(0, 0);
+    const topLeft = at(0, 0);
     const size = viewport.drawnSize;
 
     ctx!.fillStyle = COLORS.arena;
@@ -67,7 +97,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx!.strokeStyle = COLORS.grid;
     ctx!.beginPath();
     for (let u = 0; u <= ARENA_SIZE; u += GRID_STEP_UNITS) {
-      const v = viewport.arenaToScreen(u, u);
+      const v = at(u, u);
       ctx!.moveTo(v.x, topLeft.y);
       ctx!.lineTo(v.x, topLeft.y + size);
       ctx!.moveTo(topLeft.x, v.y);
@@ -81,18 +111,82 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     ctx!.strokeStyle = COLORS.obstacleEdge;
     ctx!.lineWidth = 1;
     for (const o of world.obstacles) {
-      const p = viewport.arenaToScreen(o.x, o.y);
-      const w = viewport.unitsToPixels(o.w);
-      const h = viewport.unitsToPixels(o.h);
-      ctx!.fillRect(p.x, p.y, w, h);
-      ctx!.strokeRect(p.x, p.y, w, h);
+      const p = at(o.x, o.y);
+      ctx!.fillRect(p.x, p.y, px(o.w), px(o.h));
+      ctx!.strokeRect(p.x, p.y, px(o.w), px(o.h));
     }
   }
 
+  /** Filled/stroked pie slice centred on `pos`, in arena units. */
+  function sector(pos: { x: number; y: number }, fromRad: number, toRad: number, radius: number): void {
+    const c = at(pos.x, pos.y);
+    ctx!.beginPath();
+    ctx!.moveTo(c.x, c.y);
+    ctx!.arc(c.x, c.y, px(radius), Math.min(fromRad, toRad), Math.max(fromRad, toRad));
+    ctx!.closePath();
+  }
+
+  function drawDashTrail(p: PlayerState): void {
+    if (!p.dash) return;
+    const a = at(p.dash.from.x, p.dash.from.y);
+    const b = at(p.pos.x, p.pos.y);
+    ctx!.strokeStyle = COLORS.dash;
+    ctx!.lineWidth = px(p.radius * 2);
+    ctx!.lineCap = "round";
+    ctx!.beginPath();
+    ctx!.moveTo(a.x, a.y);
+    ctx!.lineTo(b.x, b.y);
+    ctx!.stroke();
+    ctx!.lineCap = "butt";
+  }
+
+  function drawSlash(p: PlayerState): void {
+    const s = p.slash;
+    if (!s) return;
+    const progress = swingProgress(s, s.elapsedMs);
+    if (s.elapsedMs < s.windupMs) {
+      // Wind-up: show the cone about to be swept.
+      sector(p.pos, s.fromRad, s.toRad, s.range);
+      ctx!.strokeStyle = COLORS.windup;
+      ctx!.lineWidth = 1;
+      ctx!.stroke();
+      return;
+    }
+    // Swing: fill what the blade has covered so far and draw the blade itself.
+    const now = bladeAngle(s, progress);
+    sector(p.pos, s.fromRad, now, s.range);
+    ctx!.fillStyle = COLORS.swept;
+    ctx!.fill();
+    const c = at(p.pos.x, p.pos.y);
+    ctx!.strokeStyle = COLORS.blade;
+    ctx!.lineWidth = Math.max(1.5, px(s.halfWidth * 2));
+    ctx!.beginPath();
+    ctx!.moveTo(c.x, c.y);
+    ctx!.lineTo(c.x + Math.cos(now) * px(s.range), c.y + Math.sin(now) * px(s.range));
+    ctx!.stroke();
+  }
+
+  function drawShield(world: World, p: PlayerState): void {
+    if (!isShieldUp(p)) return;
+    const half = degToRad(world.config.skills.shield.coneDeg) / 2;
+    const a = angleOf(p.aimDir);
+    const c = at(p.pos.x, p.pos.y);
+    ctx!.beginPath();
+    ctx!.arc(c.x, c.y, px(p.radius) + 5, a - half, a + half);
+    ctx!.strokeStyle = COLORS.shield;
+    ctx!.lineWidth = 4;
+    ctx!.stroke();
+    sector(p.pos, a - half, a + half, p.radius + 5 / viewport.scale);
+    ctx!.fillStyle = COLORS.shieldFill;
+    ctx!.fill();
+  }
+
   function drawPlayers(world: World): void {
+    for (const player of world.players) drawDashTrail(player);
+
     for (const player of world.players) {
-      const c = viewport.arenaToScreen(player.pos.x, player.pos.y);
-      const r = viewport.unitsToPixels(player.radius);
+      const c = at(player.pos.x, player.pos.y);
+      const r = px(player.radius);
       const dead = isDead(player);
 
       ctx!.fillStyle = dead ? COLORS.dead : COLORS.players[player.id % COLORS.players.length];
@@ -101,18 +195,91 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx!.fill();
 
       if (dead) continue;
-      // Facing tick: shows the remembered movement direction (Dash will use it).
+
+      if (player.slow) {
+        ctx!.strokeStyle = COLORS.slow;
+        ctx!.lineWidth = 2;
+        ctx!.setLineDash([4, 4]);
+        ctx!.beginPath();
+        ctx!.arc(c.x, c.y, r + 2, 0, Math.PI * 2);
+        ctx!.stroke();
+        ctx!.setLineDash([]);
+      }
+
+      // Remembered movement direction (Dash uses it when idle).
       ctx!.strokeStyle = COLORS.facing;
       ctx!.lineWidth = 2;
       ctx!.beginPath();
       ctx!.moveTo(c.x, c.y);
-      ctx!.lineTo(c.x + player.lastMoveDir.x * r, c.y + player.lastMoveDir.y * r);
+      ctx!.lineTo(c.x + player.lastMoveDir.x * r * 0.6, c.y + player.lastMoveDir.y * r * 0.6);
       ctx!.stroke();
+
+      // Aim line towards the pointer.
+      ctx!.strokeStyle = COLORS.aim;
+      ctx!.lineWidth = 2;
+      ctx!.beginPath();
+      ctx!.moveTo(c.x + player.aimDir.x * r * 0.5, c.y + player.aimDir.y * r * 0.5);
+      ctx!.lineTo(c.x + player.aimDir.x * r * 1.5, c.y + player.aimDir.y * r * 1.5);
+      ctx!.stroke();
+
+      drawSlash(player);
+      drawShield(world, player);
     }
   }
 
+  function drawProjectiles(world: World): void {
+    ctx!.fillStyle = COLORS.bullet;
+    for (const b of world.projectiles) {
+      const c = at(b.pos.x, b.pos.y);
+      ctx!.beginPath();
+      ctx!.arc(c.x, c.y, Math.max(2, px(b.radius)), 0, Math.PI * 2);
+      ctx!.fill();
+    }
+  }
+
+  function drawEffects(world: World, fx: readonly TimedEvent[]): void {
+    const bash = world.config.skills.bash;
+    for (const e of fx) {
+      const age = (world.timeMs - e.atMs) / FX_LINGER_MS; // 0 fresh → 1 gone
+      const alpha = Math.max(0, 1 - age);
+      ctx!.globalAlpha = alpha;
+      switch (e.type) {
+        case "hit": {
+          const c = at(e.pos.x, e.pos.y);
+          ctx!.strokeStyle = e.blocked ? COLORS.blocked : COLORS.hit;
+          ctx!.lineWidth = 3;
+          ctx!.beginPath();
+          ctx!.arc(c.x, c.y, px(world.config.player.radius) * (1.1 + age * 0.8), 0, Math.PI * 2);
+          ctx!.stroke();
+          break;
+        }
+        case "bulletStop": {
+          const c = at(e.pos.x, e.pos.y);
+          ctx!.strokeStyle = COLORS.impact;
+          ctx!.lineWidth = 2;
+          ctx!.beginPath();
+          ctx!.arc(c.x, c.y, 3 + age * 10, 0, Math.PI * 2);
+          ctx!.stroke();
+          break;
+        }
+        case "skill": {
+          if (e.skill !== "bash") break;
+          const p = world.players.find((q) => q.id === e.playerId);
+          if (!p) break;
+          const a = angleOf(p.bash?.dir ?? p.aimDir);
+          const half = degToRad(bash.coneDeg) / 2;
+          sector(p.pos, a - half, a + half, bash.range);
+          ctx!.fillStyle = COLORS.bash;
+          ctx!.fill();
+          break;
+        }
+      }
+    }
+    ctx!.globalAlpha = 1;
+  }
+
   function drawBoundary(): void {
-    const topLeft = viewport.arenaToScreen(0, 0);
+    const topLeft = at(0, 0);
     const size = viewport.drawnSize;
     ctx!.lineWidth = 2;
     ctx!.strokeStyle = COLORS.boundary;
@@ -126,11 +293,13 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
 
   return {
     viewport,
-    draw(world: World): void {
+    draw(world: World, fx: readonly TimedEvent[] = []): void {
       ctx!.clearRect(0, 0, viewport.canvasCssWidth, viewport.canvasCssHeight);
       drawArena();
       drawObstacles(world);
       drawPlayers(world);
+      drawProjectiles(world);
+      drawEffects(world, fx);
       drawBoundary();
     },
     stop(): void {

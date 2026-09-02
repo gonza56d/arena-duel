@@ -4,11 +4,17 @@
  * worlds. No DOM, no timers — the game loop feeds it `dtMs` slices.
  */
 import { CONFIG, validateConfig, type GameConfig } from "../config";
-import type { Circle, Vec2 } from "./geometry";
+import type { WorldEvent } from "./events";
+import { normalize, sub, type Circle, type Vec2 } from "./geometry";
 import { movePlayer, type Environment } from "./movement";
 import { generateObstacles, type Obstacle } from "./obstacles";
-import { applyDamage, createPlayer, isDead, tickHeal, type PlayerState } from "./player";
+import { applyDamage, createPlayer, isDead, tickHeal, tickSlow, type PlayerState } from "./player";
 import { createRng, randomSeed } from "./rng";
+import { NO_TRIGGERS, stepProjectiles, tickPlayerSkills, tickShields, triggerSkills, type SkillTriggers } from "./skills";
+import { tickCooldowns } from "./skills/cooldowns";
+import { tickDash } from "./skills/dash";
+import type { Projectile } from "./skills/shot";
+import { defaultSkillLevels, type SkillLevels } from "./skills/stats";
 
 export interface World {
   readonly config: GameConfig;
@@ -16,6 +22,10 @@ export interface World {
   readonly arenaSize: number;
   readonly obstacles: readonly Obstacle[];
   readonly players: PlayerState[];
+  /** Bullets in flight. */
+  readonly projectiles: Projectile[];
+  /** What happened during the last tick (cleared at the start of each step). */
+  readonly events: WorldEvent[];
   /** Simulated time elapsed, in ms. */
   timeMs: number;
   /** Number of `stepWorld` calls so far. */
@@ -25,6 +35,10 @@ export interface World {
 export interface PlayerInput {
   /** Desired movement direction; any magnitude, zero = idle. */
   move: Vec2;
+  /** Pointer position in arena units; sets the aim direction. Omit to keep the last aim. */
+  aim?: Vec2;
+  /** Skills pressed this tick. */
+  skills?: SkillTriggers;
 }
 
 /** Inputs keyed by player id; players without an entry stand still. */
@@ -35,6 +49,8 @@ export interface CreateWorldOptions {
   config?: GameConfig;
   /** Players to spawn (uses the first N config spawn points). Default 2. */
   playerCount?: number;
+  /** Skill builds keyed by player id; missing players get every stat at level 1. */
+  levels?: Partial<Record<number, SkillLevels>>;
 }
 
 export function createWorld(opts: CreateWorldOptions = {}): World {
@@ -51,7 +67,7 @@ export function createWorld(opts: CreateWorldOptions = {}): World {
   const obstacles = generateObstacles(rng, config);
   const players: PlayerState[] = [];
   for (let i = 0; i < playerCount; i++) {
-    players.push(createPlayer(i, config.arena.spawnPoints[i], config));
+    players.push(createPlayer(i, config.arena.spawnPoints[i], config, opts.levels?.[i] ?? defaultSkillLevels()));
   }
 
   return {
@@ -60,6 +76,8 @@ export function createWorld(opts: CreateWorldOptions = {}): World {
     arenaSize: config.arena.size,
     obstacles,
     players,
+    projectiles: [],
+    events: [],
     timeMs: 0,
     tick: 0,
   };
@@ -67,21 +85,48 @@ export function createWorld(opts: CreateWorldOptions = {}): World {
 
 /**
  * Advance the world by one fixed step (`dtMs` defaults to `sim.tickMs`).
- * Living players move and collide; everyone runs the heal timer.
+ *
+ * Order within a tick:
+ *  1. aim, cooldown and slow timers, then skill triggers (a skill pressed this
+ *     tick starts now);
+ *  2. movement (a dashing player follows its dash instead of its input);
+ *  3. skill timelines (wind-ups complete, blades sweep, bullets spawn),
+ *     projectiles (sweep against edges, obstacles, players), then shields;
+ *  4. passive heal timer.
  */
 export function stepWorld(world: World, inputs: WorldInputs = {}, dtMs: number = world.config.sim.tickMs): void {
   const { config } = world;
+  world.events.length = 0;
 
   for (const p of world.players) {
     if (isDead(p)) continue;
-    const env: Environment = {
-      arenaSize: world.arenaSize,
-      obstacles: world.obstacles,
-      others: collidableOthers(world, p),
-    };
-    const move = inputs[p.id]?.move ?? { x: 0, y: 0 };
-    movePlayer(p, move, dtMs, env, config);
+    const input = inputs[p.id];
+    if (input?.aim) updateAim(p, input.aim);
+    tickCooldowns(p, dtMs);
+    tickSlow(p, dtMs);
+    const triggers = input?.skills ?? NO_TRIGGERS;
+    if (triggers !== NO_TRIGGERS) {
+      triggerSkills(world, p, triggers, input?.move ?? { x: 0, y: 0 }, environmentFor(world, p));
+    }
   }
+
+  for (const p of world.players) {
+    if (isDead(p)) continue;
+    const env = environmentFor(world, p);
+    if (p.dash) {
+      tickDash(p, dtMs);
+    } else {
+      const move = inputs[p.id]?.move ?? { x: 0, y: 0 };
+      movePlayer(p, move, dtMs, env, config);
+    }
+  }
+
+  for (const p of world.players) {
+    if (isDead(p)) continue;
+    tickPlayerSkills(world, p, dtMs);
+  }
+  stepProjectiles(world, dtMs);
+  tickShields(world, dtMs);
 
   for (const p of world.players) {
     tickHeal(p, dtMs, config);
@@ -91,11 +136,34 @@ export function stepWorld(world: World, inputs: WorldInputs = {}, dtMs: number =
   world.tick += 1;
 }
 
-/** Living players other than `self`, as collision circles. */
+/** Point the player at an arena position; a pointer on the centre keeps the last aim. */
+function updateAim(p: PlayerState, aim: Vec2): void {
+  const dir = normalize(sub(aim, p.pos));
+  if (dir.x !== 0 || dir.y !== 0) p.aimDir = dir;
+}
+
+/** Everything solid `p` can collide with right now. */
+export function environmentFor(world: World, p: PlayerState): Environment {
+  return {
+    arenaSize: world.arenaSize,
+    obstacles: world.obstacles,
+    others: collidableOthers(world, p),
+  };
+}
+
+/** Living players other than `self`. */
+export function livingOthers(world: World, self: PlayerState): PlayerState[] {
+  return world.players.filter((o) => o !== self && !isDead(o));
+}
+
+/**
+ * Living players other than `self`, as collision circles. A dashing player is
+ * "in the air": it is left out so it passes over others instead of shoving them.
+ */
 function collidableOthers(world: World, self: PlayerState): Circle[] {
   const out: Circle[] = [];
   for (const o of world.players) {
-    if (o === self || isDead(o)) continue;
+    if (o === self || isDead(o) || o.dash) continue;
     out.push({ x: o.pos.x, y: o.pos.y, r: o.radius });
   }
   return out;

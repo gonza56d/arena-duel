@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../config";
 import { circleInsideSquare, circleIntersectsRect, circlesIntersect } from "./geometry";
 import { isDead } from "./player";
+import { defaultSkillLevels } from "./skills/stats";
 import { createWorld, damagePlayer, stepWorld } from "./world";
 
 describe("createWorld", () => {
@@ -26,6 +27,22 @@ describe("createWorld", () => {
         for (const o of w.obstacles) expect(circleIntersectsRect({ ...p.pos, r: p.radius }, o)).toBe(false);
       }
     }
+  });
+
+  it("spawns players with level-1 builds unless told otherwise", () => {
+    const custom = defaultSkillLevels();
+    custom.dash.distance = 3;
+    const w = createWorld({ seed: 1, levels: { 1: custom } });
+    expect(w.players[0].levels).toEqual(defaultSkillLevels());
+    expect(w.players[1].levels.dash.distance).toBe(3);
+    expect(w.players[0].cooldowns).toEqual({ dash: 0, slash: 0, shot: 0, shield: 0, bash: 0 });
+    expect(w.projectiles).toEqual([]);
+  });
+
+  it("rejects an out-of-range build up front", () => {
+    const bad = defaultSkillLevels();
+    bad.shot.damage = 9;
+    expect(() => createWorld({ seed: 1, levels: { 0: bad } })).toThrow(/shot.damage level 9/);
   });
 
   it("rejects an invalid config up front", () => {
@@ -71,6 +88,30 @@ describe("stepWorld", () => {
       const [a, b] = w.players;
       expect(circlesIntersect({ ...a.pos, r: a.radius }, { ...b.pos, r: b.radius })).toBe(false);
     }
+  });
+
+  it("aims at the pointer and keeps the last aim when the pointer is on the player", () => {
+    const w = createWorld({ seed: 1 });
+    const me = w.players[0];
+    stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: me.pos.x, y: me.pos.y - 500 } } });
+    expect(me.aimDir.x).toBeCloseTo(0);
+    expect(me.aimDir.y).toBeCloseTo(-1);
+    stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: me.pos.x, y: me.pos.y } } });
+    expect(me.aimDir).toEqual({ x: 0, y: -1 });
+    stepWorld(w, { 0: { move: { x: 0, y: 0 } } });
+    expect(me.aimDir).toEqual({ x: 0, y: -1 });
+  });
+
+  it("counts cooldowns down to zero and not below", () => {
+    const w = createWorld({ seed: 1 });
+    w.players[0].cooldowns.dash = 25;
+    stepWorld(w);
+    expect(w.players[0].cooldowns.dash).toBe(15);
+    stepWorld(w);
+    stepWorld(w);
+    expect(w.players[0].cooldowns.dash).toBe(0);
+    stepWorld(w);
+    expect(w.players[0].cooldowns.dash).toBe(0);
   });
 
   it("heals over time and kills at zero", () => {

@@ -22,7 +22,7 @@ import {
   type Rect,
   type Vec2,
 } from "./geometry";
-import type { PlayerState } from "./player";
+import { speedMultiplier, type PlayerState } from "./player";
 
 /** Everything solid a moving circle can collide with. */
 export interface Environment {
@@ -40,7 +40,8 @@ export function moveDistance(dtMs: number, cfg: GameConfig = CONFIG): number {
 /**
  * Move `p` by its input for `dtMs`, then resolve collisions. `input` is any
  * vector; only its direction matters (zero = stand still, but collisions are
- * still resolved so the circle is never left overlapping something).
+ * still resolved so the circle is never left overlapping something). An active
+ * slow effect scales the distance covered.
  *
  * Invariant: a player that starts a tick in a free spot ends it in a free spot.
  * If the iterative resolver cannot settle (e.g. wedged between the arena edge
@@ -59,7 +60,7 @@ export function movePlayer(
   const dir = normalize(input);
   if (dir.x !== 0 || dir.y !== 0) {
     p.lastMoveDir = dir;
-    target = add(before, scale(dir, moveDistance(dtMs, cfg)));
+    target = add(before, scale(dir, moveDistance(dtMs, cfg) * speedMultiplier(p)));
   }
 
   const resolved = resolvePosition({ x: target.x, y: target.y, r: p.radius }, env, cfg);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../config";
-import { applyDamage, applyHeal, createPlayer, isDead, tickHeal } from "./player";
+import { applyDamage, applyHeal, applySlow, createPlayer, isDead, speedMultiplier, tickHeal, tickSlow } from "./player";
 
 const { maxHp, healIntervalMs } = CONFIG.player;
 
@@ -133,5 +133,31 @@ describe("time-based healing", () => {
     applyDamage(p, 5, cfg);
     tickHeal(p, 1000, cfg);
     expect(p.hp).toBe(maxHp - 3);
+  });
+});
+
+describe("slow effect", () => {
+  it("halves the speed multiplier while active and expires on time", () => {
+    const p = createPlayer(0, { x: 100, y: 100 });
+    expect(speedMultiplier(p)).toBe(1);
+    applySlow(p, 1000, 0.5);
+    expect(speedMultiplier(p)).toBe(0.5);
+    tickSlow(p, 990);
+    expect(speedMultiplier(p)).toBe(0.5);
+    tickSlow(p, 10);
+    // The tick that brings the counter to 0 still counts as slowed; the next one lapses it.
+    expect(speedMultiplier(p)).toBe(0.5);
+    tickSlow(p, 10);
+    expect(speedMultiplier(p)).toBe(1);
+    expect(p.slow).toBeNull();
+  });
+
+  it("refreshes rather than stacks", () => {
+    const p = createPlayer(0, { x: 100, y: 100 });
+    applySlow(p, 1000, 0.5);
+    tickSlow(p, 800);
+    applySlow(p, 1000, 0.5);
+    expect(p.slow?.remainingMs).toBe(1000);
+    expect(speedMultiplier(p)).toBe(0.5);
   });
 });

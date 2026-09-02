@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../config";
 import { circleInsideSquare, circleIntersectsRect, circlesIntersect, distance } from "./geometry";
 import { moveDistance, movePlayer, type Environment } from "./movement";
-import { createPlayer } from "./player";
+import { applySlow, createPlayer } from "./player";
 
 const SIZE = CONFIG.arena.size;
 const R = CONFIG.player.radius;
@@ -53,6 +53,13 @@ describe("movement speed", () => {
     run(p, { x: 0, y: -2 }, TICK);
     run(p, { x: 0, y: 0 }, TICK);
     expect(p.lastMoveDir).toEqual({ x: 0, y: -1 });
+  });
+
+  it("moves at half speed while slowed", () => {
+    const p = createPlayer(0, { x: 1000, y: 1000 });
+    applySlow(p, 5000, 0.5);
+    run(p, { x: 1, y: 0 }, 100);
+    expect(p.pos.x).toBeCloseTo(1015);
   });
 
   it("changing only the config speed changes the distance travelled", () => {

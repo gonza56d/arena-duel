@@ -77,3 +77,31 @@ What: HP is not clamped at 0 when damage is applied — a killing blow can leave
 ## Damage does not reset the heal-interval timer by default
 
 What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
+
+## Skill builds are a level index per *stat* (not per skill), resolved through `resolve*(levels, cfg)`; Bash has no levels
+
+What: `SkillLevels` in src/sim/skills/stats.ts holds one 0-based level per levelled stat (dash.cooldown, dash.distance, slash.cooldown/range/area/damage, shot.cooldown/range/damage, shield.cooldown); `resolveDash/Slash/Shot/Shield(levels, cfg)` turn them into concrete numbers from `CONFIG.skills`, throwing on an out-of-range index; Bash reads `CONFIG.skills.bash` directly · Why: the design doc gives each stat its own level table with different lengths (Slash damage has 3 levels, range has 4), so "one level per skill" cannot express the 16-points-over-26-stats build · Where: src/sim/skills/stats.ts, `createWorld({ levels })`, `PlayerState.levels` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code.
+
+## Cooldown is the only gate between skill uses; it is set at the trigger tick and first decremented on the next tick
+
+What: `triggerX` checks `isReady` (remaining ≤ 0), then sets `cooldowns[x] = cooldownMs` and starts the skill; `tickCooldowns` runs at the start of each tick before triggers, so a press on the tick the counter reaches 0 counts · Why: acceptance criterion "no skill can be triggered while on cooldown"; since every cooldown ≥ wind-up + active time, the same gate also prevents re-triggering a skill mid-animation without a second state machine · Where: src/sim/skills/cooldowns.ts, src/sim/skills/index.ts (`triggerSkills`) · Learned: in tests, after a trigger the counter shows the full cooldown; N idle ticks later it shows `cooldown − N·tick` — count from the tick *after* the trigger.
+
+## Shield is a fixed 500 ms window (`shield.activeMs`) that follows the live pointer and blocks every damage source, including Bash
+
+What: Space raises the shield instantly for `CONFIG.skills.shield.activeMs` (500 ms, invented — the design doc gives no duration); the cooldown starts at activation; `shieldBlocks(defender, sourcePos, coneDeg)` checks the damage *source* (attacker centre for Slash/Bash, bullet centre for Shot) against a 90° cone around the defender's current `aimDir`; a blocked Bash also applies no slow · Why: hold-to-block would make the 8 s cooldown meaningless (perma-block) and the game is about reaction timing, so a short parry window fits; "blocks 100% of the damage" was read literally over the flavour text that names only slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts (`dealDamage` is the single damage path) · Learned: shields tick *after* all offense in the tick (`tickShields`), so a shield raised this tick protects the whole tick and one expiring protects through its last tick.
+
+## Bash is bound to `E`; Shot to Alt or ⌘; Dash to left Shift only; Slash to left/right mouse; Shield to Space
+
+What: key bindings live in src/input.ts (`SKILL_KEYS`, `MOUSE_BUTTONS`), not in CONFIG; Bash (unspecified in the design doc) uses `KeyE` · Why: the other skills use non-letter keys so WASD stays free; Ctrl was rejected because Ctrl+W/S/A/D fire browser shortcuts (close tab, save, bookmark) mid-fight — the same hazard exists for ⌘ (Shot) on macOS, so Alt is the safer of the two keys the doc names · Where: src/input.ts · Learned: skill presses are edge-triggered (`e.repeat` ignored) and consumed once per `Game.advance`; a frame that runs zero ticks carries the presses to the next frame so clicks are never lost at >100 fps.
+
+## Slash and Bash cones have their apex at the player's centre; range is the sector radius from the centre
+
+What: the blade is a segment from the player centre of length `range`; Bash's hit region is the sector of radius 63 from the centre; a target is hit when its circle overlaps the (blade-width-padded) sector · Why: simplest geometric reading of "cone by range + area"; measuring from the body edge would give Bash (63) more reach than Slash level 2 (59) · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts, `distancePointToSector` / `circleIntersectsSector` in src/sim/geometry.ts · Learned: reach along the aim = range + target radius (+ half blade width for Slash): 77.5 units for Slash level 1, 88 for Bash.
+
+## Slash, Shot and Bash lock their direction at the press; Shield follows the live pointer
+
+What: `triggerSlash/Shot/Bash` copy `p.aimDir` into the skill state; only the shield cone re-reads `aimDir` each hit · Why: a locked aim makes "click where you want to hit" predictable and keeps the sim deterministic per input sequence; the shield is described as "facing the pointer" (present tense) · Where: src/sim/skills/*.ts · Learned: the blade sweeps from `centre + area/2` (player's right in y-down screen space) to `centre − area/2` for the primary click, reverse for the secondary.
+
+## Shot `range` stays a stat (max travel) but defaults to 3000 ≥ arena diagonal so bullets fly until they hit something
+
+What: `CONFIG.skills.shot.range` is a per-level max travel distance after which the bullet fades (`bulletStop` reason "range"); the shipped table is flat 3000 · Why: the design doc lists Range as a Shot stat but gives no values, while the work order says the bullet flies until it hits an edge/obstacle/player — a cap beyond the diagonal satisfies both · Where: src/config.ts, src/sim/skills/shot.ts.

@@ -29,3 +29,15 @@ What: `go.mongodb.org/mongo-driver/v2` appears as an indirect dependency in go.m
 ## The MongoDB Go driver's `InsertOne` does not write the generated ObjectID back into the p…
 
 What: The MongoDB Go driver's `InsertOne` does not write the generated ObjectID back into the passed struct automatically; the store code must extract it from the InsertOneResult and set it on the User manually · Why: — · Where: light-backend/internal/store/mongo.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-9 -->
+
+## Slash's 75 ms wind-up is not a multiple of the 10 ms tick — skill timelines must be handled in continuous ms, not tick counts
+
+What: the tick spanning 70→80 ms contains 5 ms of wind-up and 5 ms of swing; `tickSlash` sweeps the blade between `bladeAngle(progress(t0))` and `bladeAngle(progress(t1))` with progress clamped to [0,1], and `tickShot` gives the bullet a `firstStepMs` remainder · Why: the earlier note that "every timing is a multiple of 10 ms" is false for Slash · Where: src/sim/skills/slash.ts, src/sim/skills/shot.ts · Learned: never count wind-ups in ticks; compare elapsed ms to the wind-up and handle the partial tick.
+
+## A player passing over another during Dash must be excluded from the other's collision list, or MTV push-out shoves the bystander along
+
+What: with the dasher still in `others`, the stationary rival started each tick overlapping the dasher and `resolvePosition` pushed the rival 10 units per tick — the rival ended 100 units away · Why: the movement resolver assumes every overlap is the mover's fault · Where: src/sim/world.ts `collidableOthers` (skips `o.dash`) · Learned: any future "phase through" mechanic needs the same exclusion.
+
+## The rAF loop in the claude-in-chrome tab may or may not run (depends on whether the tab group's window is visible), so verify a rendered frame inside one synchronous JS execution
+
+What: in one session the game loop was frozen (visibilityState hidden), in another it ran normally and a scene "frozen" with `arenaDebug.step` had moved on by the time a screenshot/zoom was taken · Why: `requestAnimationFrame` follows tab visibility, which the extension's window placement decides · Learned: to check visuals, drive the sim with `arenaDebug.act/step/rival` and read `canvas.getContext('2d').getImageData` at the expected screen position **in the same `javascript_tool` call** (draw happens synchronously inside `Game.advance`); also drop players at a spot verified clear of the seeded obstacles, otherwise collision resolution shoves them before the scenario runs.
