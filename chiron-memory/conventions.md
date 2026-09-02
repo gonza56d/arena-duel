@@ -22,6 +22,14 @@ What: every skill test builds a world with obstacle generation disabled (`countM
 
 What: `Game.advance` appends each tick's events with `atMs = world.timeMs` and prunes those older than `FX_LINGER_MS`; the renderer fades them by age. Skill visuals otherwise read sim state (`dash.from`, `bladeAngle(slash)`, `isShieldUp`, `projectiles`) · Why: the sim stays free of presentation timing while still giving the renderer transient hits/impacts to show · Where: src/game.ts, src/renderer.ts.
 
+## Makefile targets self-document with a trailing `## description`, `##@ Section` lines group them, and the file stays GNU Make 3.81-compatible
+
+What: every public target line ends in `## one-line description`; `make help` is an awk pass over `$(MAKEFILE_LIST)` that prints `##@ Section` headers and each `target ## desc` pair, so a target without `##` is invisible in `help`. The Makefile must keep working on GNU Make 3.81 (macOS default): no `.ONESHELL`, `.RECIPEPREFIX`, `$(file …)`, `!=` or `::=`; multi-line recipes use `\` continuations with one shell · Why: `make help` is the discoverability contract of the work order, and macOS developers get 3.81 without Homebrew · Where: Makefile.
+
+## Client `Dockerfile` has `dev` (Vite dev server) and `prod` (nginx) targets; backend `Dockerfile` is a multi-stage non-root Alpine image
+
+What: root `Dockerfile`: `deps` (node:24-alpine, `npm ci`) → `dev` (copies sources, `CMD npm run dev -- --host 0.0.0.0 --port 5173`, used by compose) and `build` → `prod` (nginx:1.27-alpine serving `dist/`, the default target; `VITE_LIGHT_BACKEND_URL` is a build `ARG` there). `light-backend/Dockerfile`: golang:1.25-alpine build with `CGO_ENABLED=0`, alpine runtime as user `app`, `GIN_MODE=release`, busybox `wget` `HEALTHCHECK` on `/health`. Each context has a `.dockerignore` (root excludes `light-backend/`, `node_modules`, `.env*`; backend excludes `.env`, `bin/`) · Why: compose needs hot reload (dev server + bind mounts) while `docker build .` should still yield a deployable static image; the backend image must never bake a local `.env` · Where: Dockerfile, .dockerignore, light-backend/Dockerfile, light-backend/.dockerignore.
+
 ## UI HTML (top/side/bottom bars) is placed around the canvas using a CSS grid with the canv…
 
 What: UI HTML (top/side/bottom bars) is placed around the canvas using a CSS grid with the canvas confined to a center cell, instead of relying on z-index/absolute-positioning discipline to avoid overlap · Why: makes it structurally impossible for UI to cover the canvas, satisfying the 'UI never overlaps canvas' requirement by layout rather than convention · Where: index.html, src/style.css. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-2 -->
@@ -42,30 +50,6 @@ What: Login failures return an opaque 401 regardless of whether the email exists
 
 What: Password strength rule is minimum 8 characters with at least one letter and one digit; email is validated via `net/mail` and stored lowercased with a unique MongoDB index enforcing no duplicates · Why: — · Where: light-backend/internal/validate/validate.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-6 -->
 
-## Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange…
-
-What: Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange, purple, cyan, pink, white, black) and always persisted/returned as lowercase `#rrggbb`; new accounts start at `#ffffff` · Why: the client paints the player circle on a canvas, so a single hex form avoids every consumer re-mapping names to values; the preset list is a convenience for the UI picker · Where: light-backend/internal/validate/profile.go (`Color`, `DefaultColor`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-0 -->
-
-## Player name rule is 2–24 printable runes, trimmed, and not unique across players
-
-What: Player name rule is 2–24 printable runes, trimmed, and not unique across players · Why: the work order requires the name to be changeable at any time and imposes no uniqueness; identity is the account email, not the display name · Where: light-backend/internal/validate/profile.go (`PlayerName`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-1 -->
-
-## Profile updates go through `PATCH /profile`, which binds a dedicated request struct conta…
-
-What: Profile updates go through `PATCH /profile`, which binds a dedicated request struct containing only `player_name` and `color` (both optional, at least one required); unknown keys such as `victories` are ignored, and a request with any invalid field is rejected whole with 400 · Why: the record counters must be impossible to set from the client, and a field-restricted bind type guarantees that structurally instead of by a runtime check · Where: light-backend/internal/handlers/profile.go, light-backend/internal/store/store.go (`ProfileUpdate`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-2 -->
-
-## A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manual…
-
-What: A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manually driving/inspecting sim state from the browser console · Why: lets HP/heal/death and movement be poked and verified in a running browser without building full UI controls · Where: wired in src/main.ts / src/game.ts, dev builds only. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-11 -->
-
-## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
-
-What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
-
-## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
-
-What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
-
 ## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
 
 What: `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.points` ≤ sum of each stat's max level · Why: guarantees a valid 16-point loadout is always constructible (every stat startable at 1, budget never unspendable or overflowing) before the generator even runs · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-5 -->
@@ -78,29 +62,25 @@ What: `statValue()` is the single bridge function that converts a loadout's 1-ba
 
 What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
 
-## The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status…
+## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
 
-What: The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status line (e.g. "Match won!") driven by `Match.roundsWon`/`phase`/`matchWinnerId` · Why: — · Where: src/main.ts, index.html, src/style.css <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-13 -->
+What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
 
-## Fog of war in the renderer only hides an occluded rival's body, direction indicator, and…
+## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
 
-What: Fog of war in the renderer only hides an occluded rival's body, direction indicator, and dash trail; in-flight projectiles/bullets stay visible even when they pass behind where an obstacle would occlude a player. · Why: — · Where: src/renderer.ts (draw(world, fx, viewerId)) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
+What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
 
-## `validateConfig` enforces a feasibility check that the point budget is between the number…
+## Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange…
 
-What: `validateConfig` enforces a feasibility check that the point budget is between the number of leveled stats and the sum of their max levels (10 ≤ points ≤ 38 currently) · Why: guarantees any config change still allows a valid 1-per-stat minimum build without exceeding total max levels · Where: src/config.ts validateConfig <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-2 -->
+What: Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange, purple, cyan, pink, white, black) and always persisted/returned as lowercase `#rrggbb`; new accounts start at `#ffffff` · Why: the client paints the player circle on a canvas, so a single hex form avoids every consumer re-mapping names to values; the preset list is a convenience for the UI picker · Where: light-backend/internal/validate/profile.go (`Color`, `DefaultColor`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-0 -->
 
-## POST /profile/record always increments games_played on a valid authenticated call, but on…
+## Player name rule is 2–24 printable runes, trimmed, and not unique across players
 
-What: POST /profile/record always increments games_played on a valid authenticated call, but only increments victories when the request body's won field is true; unauthenticated calls get 401. · Why: mirrors the profile record semantics (a loss still counts as a game played) and keeps the route behind auth even though it trusts client-reported outcomes in v1. · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-11 -->
+What: Player name rule is 2–24 printable runes, trimmed, and not unique across players · Why: the work order requires the name to be changeable at any time and imposes no uniqueness; identity is the account email, not the display name · Where: light-backend/internal/validate/profile.go (`PlayerName`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-1 -->
 
-## A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death…
+## Profile updates go through `PATCH /profile`, which binds a dedicated request struct conta…
 
-What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
-
-## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
-
-What: NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random interval, with occasional idle pauses) while skill use is pressing one currently-ready skill at random on a random cadence. · Why: gives an NPC that 'randomly moves and uses skills' per the work order's intent, distinct from a scripted or optimal opponent. · Where: src/sim/npc.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-9 -->
+What: Profile updates go through `PATCH /profile`, which binds a dedicated request struct containing only `player_name` and `color` (both optional, at least one required); unknown keys such as `victories` are ignored, and a request with any invalid field is rejected whole with 400 · Why: the record counters must be impossible to set from the client, and a field-restricted bind type guarantees that structurally instead of by a runtime check · Where: light-backend/internal/handlers/profile.go, light-backend/internal/store/store.go (`ProfileUpdate`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-2 -->
 
 ## Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms,…
 
@@ -110,14 +90,6 @@ What: Shot's bullet travels at a fixed speed derived from config (arena side len
 
 What: Because createWorld rolls a random per-player Loadout, skill unit tests pin only the levels they assert on via a `testLoadout` helper, which fills remaining stat points into stats the test doesn't observe · Why: keeps skill tests deterministic without hand-writing full loadouts for every stat · Where: src/sim/skills/*.test.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-15 -->
 
-## Slash records which targets it has already hit during the current swing, so the per-tick…
-
-What: Slash records which targets it has already hit during the current swing, so the per-tick angular-slice test doesn't re-damage the same enemy on a later tick as the blade continues sweeping · Why: needed because contact is tested every tick rather than once per swing · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-22 -->
-
-## Bullet radius and blade width are computed via derived helper functions in config.ts (bul…
-
-What: Bullet radius and blade width are computed via derived helper functions in config.ts (bulletRadius, bladeWidth) from player-width ratios, rather than stored as standalone literal stat fields · Why: — · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-23 -->
-
 ## Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat…
 
 What: Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat measured as the sector radius from that centre · Why: README doesn't specify apex/measurement point; centre-to-centre was chosen for consistency with the circle collision model · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-4 -->
@@ -126,10 +98,38 @@ What: Slash's and Bash's cones use the player centre as the apex, with the skill
 
 What: Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is pressed; Shield instead keeps following the live pointer for the whole time it's active · Why: — · Where: src/sim/skills/*.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-5 -->
 
-## Makefile targets self-document with a trailing `## description`, `##@ Section` lines group them, and the file stays GNU Make 3.81-compatible
+## Slash records which targets it has already hit during the current swing, so the per-tick…
 
-What: every public target line ends in `## one-line description`; `make help` is an awk pass over `$(MAKEFILE_LIST)` that prints `##@ Section` headers and each `target ## desc` pair, so a target without `##` is invisible in `help`. The Makefile must keep working on GNU Make 3.81 (macOS default): no `.ONESHELL`, `.RECIPEPREFIX`, `$(file …)`, `!=` or `::=`; multi-line recipes use `\` continuations with one shell · Why: `make help` is the discoverability contract of the work order, and macOS developers get 3.81 without Homebrew · Where: Makefile.
+What: Slash records which targets it has already hit during the current swing, so the per-tick angular-slice test doesn't re-damage the same enemy on a later tick as the blade continues sweeping · Why: needed because contact is tested every tick rather than once per swing · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-22 -->
 
-## Client `Dockerfile` has `dev` (Vite dev server) and `prod` (nginx) targets; backend `Dockerfile` is a multi-stage non-root Alpine image
+## Bullet radius and blade width are computed via derived helper functions in config.ts (bul…
 
-What: root `Dockerfile`: `deps` (node:24-alpine, `npm ci`) → `dev` (copies sources, `CMD npm run dev -- --host 0.0.0.0 --port 5173`, used by compose) and `build` → `prod` (nginx:1.27-alpine serving `dist/`, the default target; `VITE_LIGHT_BACKEND_URL` is a build `ARG` there). `light-backend/Dockerfile`: golang:1.25-alpine build with `CGO_ENABLED=0`, alpine runtime as user `app`, `GIN_MODE=release`, busybox `wget` `HEALTHCHECK` on `/health`. Each context has a `.dockerignore` (root excludes `light-backend/`, `node_modules`, `.env*`; backend excludes `.env`, `bin/`) · Why: compose needs hot reload (dev server + bind mounts) while `docker build .` should still yield a deployable static image; the backend image must never bake a local `.env` · Where: Dockerfile, .dockerignore, light-backend/Dockerfile, light-backend/.dockerignore.
+What: Bullet radius and blade width are computed via derived helper functions in config.ts (bulletRadius, bladeWidth) from player-width ratios, rather than stored as standalone literal stat fields · Why: — · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-23 -->
+
+## POST /profile/record always increments games_played on a valid authenticated call, but on…
+
+What: POST /profile/record always increments games_played on a valid authenticated call, but only increments victories when the request body's won field is true; unauthenticated calls get 401. · Why: mirrors the profile record semantics (a loss still counts as a game played) and keeps the route behind auth even though it trusts client-reported outcomes in v1. · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-11 -->
+
+## A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death…
+
+What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
+
+## Fog of war in the renderer only hides an occluded rival's body, direction indicator, and…
+
+What: Fog of war in the renderer only hides an occluded rival's body, direction indicator, and dash trail; in-flight projectiles/bullets stay visible even when they pass behind where an obstacle would occlude a player. · Why: — · Where: src/renderer.ts (draw(world, fx, viewerId)) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
+
+## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
+
+What: NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random interval, with occasional idle pauses) while skill use is pressing one currently-ready skill at random on a random cadence. · Why: gives an NPC that 'randomly moves and uses skills' per the work order's intent, distinct from a scripted or optimal opponent. · Where: src/sim/npc.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-9 -->
+
+## The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status…
+
+What: The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status line (e.g. "Match won!") driven by `Match.roundsWon`/`phase`/`matchWinnerId` · Why: — · Where: src/main.ts, index.html, src/style.css <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-13 -->
+
+## Makefile targets are self-documenting via a `##` comment suffix on each target line, pars…
+
+What: Makefile targets are self-documenting via a `##` comment suffix on each target line, parsed by `awk` in the default `help` target, grouped by section · Why: — · Where: Makefile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-1 -->
+
+## The root `.env` file (used only for docker-compose variable interpolation) is gitignored,…
+
+What: The root `.env` file (used only for docker-compose variable interpolation) is gitignored, matching the existing gitignore pattern for light-backend/.env · Why: — · Where: .gitignore <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-15 -->

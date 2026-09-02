@@ -54,22 +54,6 @@ What: The 'light' backend (accounts + auth, low-intensity requests) lives in its
 
 What: Data access goes through a `UserStore` interface with a MongoDB implementation and an in-memory fake implementation · Why: Lets handler/unit tests run against the in-memory fake with no live MongoDB required · Where: light-backend/internal/store/store.go, mongo.go, memory.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-3 -->
 
-## The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) h…
-
-What: The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) has no DOM dependencies and takes config as an injected parameter · Why: keeps sim logic pure and deterministic so unit tests can override config values (e.g. double speed) without touching production config · Where: src/sim/*.ts, called from src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-1 -->
-
-## Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-align…
-
-What: Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-aligned rectangles, kept clear of an edge margin and player spawn zones, with guaranteed passable gaps (gap ≥ player diameter + margin) · Why: obstacle placement must be random but never trap or block spawn points · Where: src/sim/obstacles.ts, src/sim/rng.ts, generation params in CONFIG.arena. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-9 -->
-
-## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
-
-What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
-
-## Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is…
-
-What: Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is passed in as a parameter rather than imported globally inside sim modules. · Why: lets unit tests override config values (e.g. double move speed) to verify behavior changes in isolation, and keeps the simulation reusable/deterministic. · Where: src/sim/*.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-2 -->
-
 ## `StatId` (and its runtime twins `leveledStatIds()`/`statLevels()`) is derived from every…
 
 What: `StatId` (and its runtime twins `leveledStatIds()`/`statLevels()`) is derived from every `Levels` field present in the skill configs, not hardcoded · Why: keeps the stat model data-driven — giving a skill a level table makes it spendable automatically, with no generator/validator changes needed · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-1 -->
@@ -82,33 +66,17 @@ What: A match (`src/sim/match.ts`), not the world/round, owns loadouts — `crea
 
 What: `Loadout` is a flat "skill.stat" → level map using 1-based levels (level 1 = the enforced minimum) · Why: 1-based levels match the backend's reserved `configured_stats` map format, keeping the client representation aligned with the future backend contract · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-6 -->
 
-## `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match en…
+## The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) h…
 
-What: `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match end but only increments `victories` when the reporting player won · Why: — · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-12 -->
+What: The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) has no DOM dependencies and takes config as an injected parameter · Why: keeps sim logic pure and deterministic so unit tests can override config values (e.g. double speed) without touching production config · Where: src/sim/*.ts, called from src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-1 -->
 
-## Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus…
+## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
 
-What: Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus left/right edge points at its radius — against obstacles via `segmentIntersectsRect` (Liang–Barsky), rather than testing only the center-to-center line. · Why: a pure center-line test flickers a rival visible/invisible right at an obstacle corner even though most of their body is still hidden. · Where: src/sim/vision.ts, src/sim/geometry.ts (segmentIntersectsRect) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-4 -->
+What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
 
-## The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same Pla…
+## Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-align…
 
-What: The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same PlayerInput a human emits (move vector, aim, skill triggers), fed through the identical stepWorld path as the local player. · Why: routing NPC actions through the shared simulation rules (cooldown gates in triggerSkills, speed clamp in movePlayer) makes it structurally impossible for the NPC to exceed cooldowns or move speed — no separate validation logic needed. · Where: src/sim/npc.ts, wired per-tick in src/game.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-0 -->
-
-## Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, p…
-
-What: Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, plus phase/roundsWon/matchWinnerId state) lives as pure functions added to src/sim/match.ts rather than in game.ts or a new module. · Why: keeps round/match progression testable without DOM/timers, consistent with the project's existing pure-sim architecture. · Where: src/sim/match.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-1 -->
-
-## A round does not advance the instant a player dies — game.ts freezes on the death frame,…
-
-What: A round does not advance the instant a player dies — game.ts freezes on the death frame, waits a fixed intermission, then starts the next round (and freezes entirely once phase becomes matchOver). · Why: gives the player a readable beat to see who won the round/match before the next round or a game-over state appears, instead of an instant jarring reset. · Where: src/game.ts (advance/nextRound flow). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-10 -->
-
-## Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipp…
-
-What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipping) plus vision.ts canSee(from, target, obstacles), which samples the target's silhouette (center ± radius edges), not just the center point. · Why: sampling only the center line would flicker/misjudge visibility when a circle is partially exposed at an obstacle's corner; silhouette sampling makes an actor fully behind cover reliably hidden. · Where: src/sim/geometry.ts, src/sim/vision.ts; consumed by renderer.draw(world, fx, viewerId). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-3 -->
-
-## The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from…
-
-What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->
+What: Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-aligned rectangles, kept clear of an edge margin and player spawn zones, with guaranteed passable gaps (gap ≥ player diameter + margin) · Why: obstacle placement must be random but never trap or block spawn points · Where: src/sim/obstacles.ts, src/sim/rng.ts, generation params in CONFIG.arena. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-9 -->
 
 ## PlayerInput was extended with `aim` (an arena-space point) and `skills` (one-shot per-tic…
 
@@ -137,3 +105,51 @@ What: skills/cooldowns.ts is the single cooldown gate for all five skills — a 
 ## During its 100ms travel a dashing player is excluded from other players' collision checks…
 
 What: During its 100ms travel a dashing player is excluded from other players' collision checks, so Dash passes over an enemy instead of shoving it · Why: — · Where: src/sim/skills/dash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-9 -->
+
+## The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same Pla…
+
+What: The zombie NPC (src/sim/npc.ts) is a decide(world, dtMs) function that emits the same PlayerInput a human emits (move vector, aim, skill triggers), fed through the identical stepWorld path as the local player. · Why: routing NPC actions through the shared simulation rules (cooldown gates in triggerSkills, speed clamp in movePlayer) makes it structurally impossible for the NPC to exceed cooldowns or move speed — no separate validation logic needed. · Where: src/sim/npc.ts, wired per-tick in src/game.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-0 -->
+
+## Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, p…
+
+What: Match scoring/round-flow logic (roundsToWin, roundOutcome, concludeRound, advanceRound, plus phase/roundsWon/matchWinnerId state) lives as pure functions added to src/sim/match.ts rather than in game.ts or a new module. · Why: keeps round/match progression testable without DOM/timers, consistent with the project's existing pure-sim architecture. · Where: src/sim/match.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-1 -->
+
+## A round does not advance the instant a player dies — game.ts freezes on the death frame,…
+
+What: A round does not advance the instant a player dies — game.ts freezes on the death frame, waits a fixed intermission, then starts the next round (and freezes entirely once phase becomes matchOver). · Why: gives the player a readable beat to see who won the round/match before the next round or a game-over state appears, instead of an instant jarring reset. · Where: src/game.ts (advance/nextRound flow). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-10 -->
+
+## Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipp…
+
+What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipping) plus vision.ts canSee(from, target, obstacles), which samples the target's silhouette (center ± radius edges), not just the center point. · Why: sampling only the center line would flicker/misjudge visibility when a circle is partially exposed at an obstacle's corner; silhouette sampling makes an actor fully behind cover reliably hidden. · Where: src/sim/geometry.ts, src/sim/vision.ts; consumed by renderer.draw(world, fx, viewerId). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-3 -->
+
+## Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus…
+
+What: Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus left/right edge points at its radius — against obstacles via `segmentIntersectsRect` (Liang–Barsky), rather than testing only the center-to-center line. · Why: a pure center-line test flickers a rival visible/invisible right at an obstacle corner even though most of their body is still hidden. · Where: src/sim/vision.ts, src/sim/geometry.ts (segmentIntersectsRect) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-4 -->
+
+## The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from…
+
+What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->
+
+## `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match en…
+
+What: `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match end but only increments `victories` when the reporting player won · Why: — · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-12 -->
+
+## The client Dockerfile defines two build targets — `dev` (Vite dev server bound to 0.0.0.0…
+
+What: The client Dockerfile defines two build targets — `dev` (Vite dev server bound to 0.0.0.0, used by docker compose for hot reload) and `prod` (static build served by nginx, with VITE_LIGHT_BACKEND_URL passed in as a build arg since it must be baked into the bundle at build time) · Why: — · Where: Dockerfile (client) <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-11 -->
+
+## light-backend/Dockerfile is a multi-stage build — golang:1.25-alpine compiles with CGO_EN…
+
+What: light-backend/Dockerfile is a multi-stage build — golang:1.25-alpine compiles with CGO_ENABLED=0, and the runtime stage is a non-root Alpine image with a HEALTHCHECK against GET /health · Why: — · Where: light-backend/Dockerfile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-12 -->
+
+## light-backend's test suite uses an in-memory store implementation, so `go test ./...` req…
+
+What: light-backend's test suite uses an in-memory store implementation, so `go test ./...` requires no running MongoDB — only the live server needs real Mongo connectivity · Why: — · Where: light-backend/internal <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-5 -->
+
+## The backend dials and pings MongoDB at startup with a 10-second timeout and refuses to st…
+
+What: The backend dials and pings MongoDB at startup with a 10-second timeout and refuses to start if it fails · Why: — · Where: light-backend store/mongo.go Connect <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-7 -->
+
+## The client has no vite.config file and the Vite dev server defaults to localhost:5173
+
+What: The client has no vite.config file and the Vite dev server defaults to localhost:5173 · Why: — · Where: repo root <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-9 -->

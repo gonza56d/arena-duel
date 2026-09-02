@@ -42,18 +42,46 @@ What: `go.mongodb.org/mongo-driver/v2` appears as an indirect dependency in go.m
 
 What: The MongoDB Go driver's `InsertOne` does not write the generated ObjectID back into the passed struct automatically; the store code must extract it from the InsertOneResult and set it on the User manually · Why: — · Where: light-backend/internal/store/mongo.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-9 -->
 
-## `VITE_LIGHT_BACKEND_URL` is read by the browser, so under compose it must be the host-facing URL, not `http://backend:8080`
+## `createWorld({ loadouts })` generates loadouts (when not explicitly passed) from the worl…
 
-What: the client resolves the backend base URL from `import.meta.env.VITE_LIGHT_BACKEND_URL` at runtime in the browser; `docker-compose.yml` therefore passes `http://localhost:8080` (the published port), not the compose-network hostname, which the browser cannot resolve · Where: src/profile.ts (`baseUrl`), docker-compose.yml (`client.environment`) · Learned: the same applies to the `prod` image build arg — it is baked for the browser's network, not the container's.
+What: `createWorld({ loadouts })` generates loadouts (when not explicitly passed) from the world RNG *after* the obstacle layout is generated · Why: preserves existing per-seed obstacle layouts exactly as before the loadout feature was added — generating loadouts first would have shifted the RNG stream and changed pre-existing seeded test/layout expectations · Where: src/sim/world.ts createWorld · Learned: when adding new RNG consumption to a seeded pipeline, order matters for backward compatibility with existing seeds. <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-10 -->
 
-## Vite inside Docker needs `--host 0.0.0.0`; without it the published port 5173 is unreachable from the host
+## The Bash skill has no level table at all (fully fixed/non-spendable), while Shot range's…
 
-What: `npm run dev` binds to the container's loopback by default (there is no `vite.config`), so the `dev` image runs `npm run dev -- --host 0.0.0.0 --port 5173` · Where: Dockerfile (`dev` target CMD) · Learned: `make run-client` on the host keeps the plain `npm run dev`, where localhost is fine.
+What: The Bash skill has no level table at all (fully fixed/non-spendable), while Shot range's level table is flat (`[700, 700, 700, 700]`) so spending points on it currently has no gameplay effect · Why: Shot range is still typed as a leveled stat and was kept spendable by design, pending future tuning · Where: src/config.ts skills.shot / skills.bash · Learned: don't assume every stat that accepts points changes behavior yet — check whether its table has distinct values per level. <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-4 -->
 
-## `go.mod` says `go 1.25.0` but local machines may run an older Go; `GOTOOLCHAIN=auto` downloads 1.25 on the first `go test`
+## Chiron auto-commits work-order changes, and separate parallel work orders append to the s…
 
-What: the backend module requires Go 1.25.0; with the default `GOTOOLCHAIN=auto` an older local Go (1.24 was observed) fetches the 1.25 toolchain on first `make test-backend`/`make run-backend`, so that first run is slow and needs network. The backend image pins `golang:1.25-alpine` for the same reason · Where: light-backend/go.mod, light-backend/Dockerfile · Learned: a "go: downloading go1.25.0" line during `make test` is expected, not a broken install.
+What: Chiron auto-commits work-order changes, and separate parallel work orders append to the same shared `chiron-memory/*.md` files, so `/chiron-push` can hit merge conflicts in memory files even when the actual code doesn't conflict. · Why: — · Learned: resolve by keeping both sides' appended sections (master's then local's) rather than discarding either — the files are append-only logs, not exclusive-owned state. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-13 -->
 
-## Backend has no CORS middleware; browser calls from the Vite origin (:5173) to :8080 are blocked regardless of how things are started
+## A single collision-resolution pass per tick wasn't enough to converge a player squeezed s…
 
-What: `router.go` registers no CORS headers, so `fetch` from `http://localhost:5173` to `http://localhost:8080` (POST + JSON + Authorization triggers a preflight) fails in the browser even though `curl` works and the compose/Makefile wiring is correct. Documented as a known limitation in the root README; fixing it (e.g. gin-contrib/cors) was deliberately left out of the Makefile/Docker work order · Where: light-backend/internal/server/router.go, README.md ("Known limitation") · Learned: when the client's `/profile/record` call "does nothing", check the browser console for a CORS error before suspecting the compose network.
+What: A single collision-resolution pass per tick wasn't enough to converge a player squeezed simultaneously between the arena edge, an obstacle, and another player. · Why: needed multiple resolution passes; added `sim.collisionPasses` to CONFIG (extra resolution passes per tick) to settle these multi-constraint cases. · Where: src/config.ts, src/sim/movement.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-6 -->
+
+## Slash's 75ms wind-up is not a multiple of the simulation tick length, so each tick must t…
+
+What: Slash's 75ms wind-up is not a multiple of the simulation tick length, so each tick must test the angular slice of the blade's sweep actually covered that tick rather than snapping to tick boundaries · Why: otherwise damage lands a tick early or late relative to when the blade visually reaches the target · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-11 -->
+
+## Skill-key input must be edge-triggered but must never drop a press that occurs between tw…
+
+What: Skill-key input must be edge-triggered but must never drop a press that occurs between two animation frames · Why: a merge bug in `game.ts`'s `advance` overwrote queued local input each frame, silently dropping presses at high frame rates · Where: src/input.ts, src/game.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-17 -->
+
+## light-backend has no CORS middleware, so browser fetch calls from the Vite client origin…
+
+What: light-backend has no CORS middleware, so browser fetch calls from the Vite client origin (:5173) to the backend (:8080) are blocked by the browser regardless of whether the two run locally, via `make run`, or via docker compose · Why: pre-existing gap, intentionally left unfixed for this work order per user scoping decision · Where: light-backend router <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-10 -->
+
+## This project's `chiron memory` CLI has no `check` subcommand, so memory validation via `c…
+
+What: This project's `chiron memory` CLI has no `check` subcommand, so memory validation via `chiron-memory check` is unavailable and must be skipped · Why: — · Where: chiron-memory/ tooling <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-16 -->
+
+## The Makefile must stay compatible with GNU Make 3.81, since that is macOS's bundled defau…
+
+What: The Makefile must stay compatible with GNU Make 3.81, since that is macOS's bundled default make · Why: — · Learned: an `awk` script embedded in the `help` target failed with newer-Make-only syntax until rewritten for 3.81 <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-2 -->
+
+## light-backend has no `.env` file loader in the Go code — it reads env vars directly from…
+
+What: light-backend has no `.env` file loader in the Go code — it reads env vars directly from the process environment; `.env` is only a developer convenience consumed by the Makefile/docker-compose, not by the Go binary · Why: — · Where: light-backend/internal/config/config.go <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-6 -->
+
+## The client's backend URL (`VITE_LIGHT_BACKEND_URL`, default http://localhost:8080) is bak…
+
+What: The client's backend URL (`VITE_LIGHT_BACKEND_URL`, default http://localhost:8080) is baked into browser-side JS via Vite env handling, so under docker compose it must still point to a host-facing URL, not an internal compose service name like `http://backend:8080`, because the browser (not the container) makes the request · Why: — · Where: src/config.ts, docker-compose.yml <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-8 -->

@@ -82,50 +82,6 @@ What: Light backend (accounts/auth) built as new Go module in `light-backend/`, 
 
 What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
 
-## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
-
-What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
-
-## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
-
-What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
-
-## All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/H…
-
-What: All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/HP/heal, sim tick, best-of options, per-skill stat tables) live in one typed `CONFIG` object · Why: v1 is a tuning instrument — changing one constant must change behavior everywhere with no other edits · Where: src/config.ts, with src/arena.ts re-exporting arena size from it instead of a local literal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-0 -->
-
-## Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, tim…
-
-What: Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, timings, cone degrees, size ratios) were added to CONFIG as data only, with no skill logic yet · Why: this work order builds only the foundation (arena, movement, collision, HP); skill behavior is a separate future work order that will consume this config · Where: CONFIG.skills in src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-12 -->
-
-## If collision resolution cannot find a valid non-overlapping position for a move, the whol…
-
-What: If collision resolution cannot find a valid non-overlapping position for a move, the whole move for that tick is cancelled rather than partially applied · Why: avoids leaving players in ambiguous partially-resolved states when squeezed between edge/obstacle/player · Where: src/sim/movement.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-14 -->
-
-## The client demo spawns a second player as a stationary dummy (not networked, not AI) pure…
-
-What: The client demo spawns a second player as a stationary dummy (not networked, not AI) purely so player-vs-player collision is visible in manual/browser testing · Why: v1 has no networking or NPC yet, but collision against another player still needed visual verification · Where: src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-15 -->
-
-## HP is not clamped at 0 when damage is applied — a killing blow can leave HP negative (ove…
-
-What: HP is not clamped at 0 when damage is applied — a killing blow can leave HP negative (overkill) · Why: deliberate judgment call to keep overkill damage visible in state rather than hiding it · Where: src/sim/player.ts applyDamage; death check is `hp <= 0` (isDead), not `hp === 0`. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-4 -->
-
-## Damage does not reset the heal-interval timer by default
-
-What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
-
-## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
-
-What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
-
-## HP is not clamped at 0 when overkill damage is applied (e.g
-
-What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
-
-## The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.…
-
-What: The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.statPointsPerPlayer`) · Why: v1 needs one data-driven source for the point budget so v2's manual builder can validate against the exact same number · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-0 -->
-
 ## `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round…
 
 What: `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round seed derived from the match seed, while keeping the same two loadouts, capped at the match's best-of-N round count · Why: — · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-12 -->
@@ -138,17 +94,29 @@ What: A match defaults to best-of-3, and the client's left sidebar always displa
 
 What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loadouts — no scoring, win/loss state, or match-end detection is implemented · Why: this work order's scope was loadout generation and per-game reroll timing only, not win conditions · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-14 -->
 
-## `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on…
+## Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, tim…
 
-What: `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on each), then spends remaining points one at a time on a uniformly random non-maxed stat until the budget is exhausted · Why: satisfies the product intent that "different amounts of levels per skill stat are expected" while guaranteeing the full 16-point budget is always spent and no stat exceeds its max · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-8 -->
+What: Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, timings, cone degrees, size ratios) were added to CONFIG as data only, with no skill logic yet · Why: this work order builds only the foundation (arena, movement, collision, HP); skill behavior is a separate future work order that will consume this config · Where: CONFIG.skills in src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-12 -->
 
-## The client posts match results to the backend best-effort: it reads a bearer token from l…
+## The client demo spawns a second player as a stationary dummy (not networked, not AI) pure…
 
-What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
+What: The client demo spawns a second player as a stationary dummy (not networked, not AI) purely so player-vs-player collision is visible in manual/browser testing · Why: v1 has no networking or NPC yet, but collision against another player still needed visual verification · Where: src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-15 -->
 
-## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
+## Damage does not reset the heal-interval timer by default
 
-What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
+What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
+
+## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
+
+What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
+
+## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
+
+What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
+
+## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
+
+What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
 
 ## Shot's config `range` stat defaults to 3000 (≥ arena diagonal)
 
@@ -181,3 +149,23 @@ What: Slash's secondary swing is bound to the right mouse button, so input.ts su
 ## Bash is bound to key `E`, not Ctrl
 
 What: Bash is bound to key `E`, not Ctrl · Why: Ctrl+W/S/D fire browser shortcuts mid-fight; the same hazard exists for Cmd (used for Shot) on macOS, but Alt is the safe binding of the two names the README gives · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
+
+## The client posts match results to the backend best-effort: it reads a bearer token from l…
+
+What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
+
+## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
+
+What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
+
+## A root Makefile was added as the single developer entry point wrapping both npm (client)…
+
+What: A root Makefile was added as the single developer entry point wrapping both npm (client) and go (backend) commands (run, test, install, docker targets) · Why: new developers previously had to learn two toolchains and stand up MongoDB by hand before anything ran · Where: Makefile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-0 -->
+
+## docker-compose publishes MongoDB's port 27017 to the host
+
+What: docker-compose publishes MongoDB's port 27017 to the host · Why: lets `make run` (backend running natively on the host, not in a container) reuse the same compose-managed Mongo instead of requiring a separate local Mongo install · Where: docker-compose.yml <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-13 -->
+
+## `make test` runs the client vitest suite and `go test ./...` for the backend, running bot…
+
+What: `make test` runs the client vitest suite and `go test ./...` for the backend, running both even if the first fails, and exits non-zero if either failed · Why: a single command should surface both suites' failures instead of stopping at the first · Where: Makefile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-4 -->
