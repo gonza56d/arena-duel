@@ -1,6 +1,6 @@
 # architecture
 
-A structural/design choice: layers, module boundaries, where things live.
+How the system is put together — layers, boundaries, and how data flows.
 
 ## `Match` (src/sim/match.ts) owns a game's loadouts; a `World` is one round and always carries a loadout per player
 
@@ -38,6 +38,14 @@ What: The simulation layer under src/sim/ (rng, geometry, obstacles, player, mov
 
 What: Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-aligned rectangles, kept clear of an edge margin and player spawn zones, with guaranteed passable gaps (gap ≥ player diameter + margin) · Why: obstacle placement must be random but never trap or block spawn points · Where: src/sim/obstacles.ts, src/sim/rng.ts, generation params in CONFIG.arena. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-9 -->
 
+## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
+
+What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
+
+## Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is…
+
+What: Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is passed in as a parameter rather than imported globally inside sim modules. · Why: lets unit tests override config values (e.g. double move speed) to verify behavior changes in isolation, and keeps the simulation reusable/deterministic. · Where: src/sim/*.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-2 -->
+
 ## `StatId` (and its runtime twins `leveledStatIds()`/`statLevels()`) is derived from every…
 
 What: `StatId` (and its runtime twins `leveledStatIds()`/`statLevels()`) is derived from every `Levels` field present in the skill configs, not hardcoded · Why: keeps the stat model data-driven — giving a skill a level table makes it spendable automatically, with no generator/validator changes needed · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-1 -->
@@ -50,13 +58,6 @@ What: A match (`src/sim/match.ts`), not the world/round, owns loadouts — `crea
 
 What: `Loadout` is a flat "skill.stat" → level map using 1-based levels (level 1 = the enforced minimum) · Why: 1-based levels match the backend's reserved `configured_stats` map format, keeping the client representation aligned with the future backend contract · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-6 -->
 
-## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
-
-What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
-
-## Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is…
-
-What: Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is passed in as a parameter rather than imported globally inside sim modules. · Why: lets unit tests override config values (e.g. double move speed) to verify behavior changes in isolation, and keeps the simulation reusable/deterministic. · Where: src/sim/*.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-2 -->
 ## Skills live in `src/sim/skills/` as `trigger*` / `tick*` pairs orchestrated by `skills/index.ts`; `stepWorld` runs aim → cooldowns/slow → triggers → movement (dash overrides) → offense → projectiles → shields → heal
 
 What: each skill module owns its state type (stored on `PlayerState.dash/slash/shot/bash/shield`), a `trigger*` (cooldown gate + state) and a `tick*`; `skills/index.ts` dispatches `SkillTriggers` from `PlayerInput.skills` and ticks them; `PlayerInput` gained `aim` (arena point → `aimDir`) and `skills`; `World` gained `projectiles` and per-tick `events` (cleared at the start of each step) · Why: keeps every skill unit-testable through `createWorld`/`stepWorld` with no DOM, and the tick order makes timing exact: a 10 ms wind-up pressed at tick k resolves at the end of tick k; a slow applied in tick k scales exactly `duration/tick` movement ticks starting at k+1 · Where: src/sim/skills/index.ts, src/sim/world.ts, src/sim/events.ts · Learned: skill modules import `type World` only, so there is no runtime cycle with world.ts.

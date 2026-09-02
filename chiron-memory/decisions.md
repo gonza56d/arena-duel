@@ -1,6 +1,6 @@
 # decision
 
-A technical decision that was made and WHY (which alternatives were discarded).
+A choice made and the reasoning behind it — the path taken over the alternatives.
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -82,6 +82,14 @@ What: HP is not clamped at 0 when damage is applied — a killing blow can leave
 
 What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
 
+## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
+
+What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
+
+## HP is not clamped at 0 when overkill damage is applied (e.g
+
+What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
+
 ## The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.…
 
 What: The 16-point stat budget lives in a new `build.points` config section (replacing `rounds.statPointsPerPlayer`) · Why: v1 needs one data-driven source for the point budget so v2's manual builder can validate against the exact same number · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-0 -->
@@ -102,13 +110,6 @@ What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and th
 
 What: `generateLoadout(rng)` sets every leveled stat to level 1 first (spending the minimum on each), then spends remaining points one at a time on a uniformly random non-maxed stat until the budget is exhausted · Why: satisfies the product intent that "different amounts of levels per skill stat are expected" while guaranteeing the full 16-point budget is always spent and no stat exceeds its max · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-8 -->
 
-## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
-
-What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
-
-## HP is not clamped at 0 when overkill damage is applied (e.g
-
-What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
 ## Skills read their numbers through `resolve*(loadout, cfg)` in src/sim/skills/stats.ts, which wraps `statValue`; Bash reads `CONFIG.skills.bash` directly
 
 What: `resolveDash/Slash/Shot/Shield(loadout, cfg)` gather one skill's numbers — leveled stats via `statValue(loadout, "skill.stat", cfg)` (1-based `Loadout` from src/sim/loadout.ts), fixed ones straight from the config — into a typed stats object; Bash has no leveled stats and reads `CONFIG.skills.bash` · Why: the skills work order first shipped its own 0-based `SkillLevels`, but the loadout work order landed the canonical `Loadout` (random 16-point builds per match, backend-shaped); merging kept one representation and one off-by-one bridge (`statValue`) while skill code keeps a single call per skill · Where: src/sim/skills/stats.ts, `PlayerState.loadout`, `createWorld({ loadouts })` · Learned: derived sizes (bullet radius, blade width, bullet speed) are helpers in src/config.ts (`bulletRadius`, `bladeWidth`, `bulletSpeedUnitsPerMs`) so no ratio maths leaks into skill code; skill tests must pass explicit loadouts (`testLoadout` in src/sim/skills/loadout.testutil.ts) because `createWorld` rolls random builds otherwise.
