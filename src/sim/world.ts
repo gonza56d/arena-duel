@@ -5,6 +5,7 @@
  */
 import { CONFIG, validateConfig, type GameConfig } from "../config";
 import type { Circle, Vec2 } from "./geometry";
+import { assertValidLoadout, generateLoadout, type Loadout } from "./loadout";
 import { movePlayer, type Environment } from "./movement";
 import { generateObstacles, type Obstacle } from "./obstacles";
 import { applyDamage, createPlayer, isDead, tickHeal, type PlayerState } from "./player";
@@ -35,6 +36,13 @@ export interface CreateWorldOptions {
   config?: GameConfig;
   /** Players to spawn (uses the first N config spawn points). Default 2. */
   playerCount?: number;
+  /**
+   * One loadout per player (index = player id), normally fixed by the match
+   * so every round shares them. When omitted, each player gets a random valid
+   * build rolled from the world seed (after the obstacles, so a seed's layout
+   * is the same either way).
+   */
+  loadouts?: readonly Loadout[];
 }
 
 export function createWorld(opts: CreateWorldOptions = {}): World {
@@ -49,9 +57,16 @@ export function createWorld(opts: CreateWorldOptions = {}): World {
 
   const rng = createRng(seed);
   const obstacles = generateObstacles(rng, config);
+
+  const loadouts = opts.loadouts ?? Array.from({ length: playerCount }, () => generateLoadout(rng, config));
+  if (loadouts.length < playerCount) {
+    throw new Error(`Cannot spawn ${playerCount} players with ${loadouts.length} loadouts`);
+  }
+
   const players: PlayerState[] = [];
   for (let i = 0; i < playerCount; i++) {
-    players.push(createPlayer(i, config.arena.spawnPoints[i], config));
+    assertValidLoadout(loadouts[i], config);
+    players.push(createPlayer(i, config.arena.spawnPoints[i], loadouts[i], config));
   }
 
   return {

@@ -111,6 +111,27 @@ h2 {
   line-height: 1.9;
 }
 
+/* Per-game builds: one skill per line, its stat levels underneath. */
+.skill-list li {
+  line-height: 1.3;
+  margin-bottom: 7px;
+}
+.skill-name {
+  display: block;
+}
+.skill-levels {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.skill-levels span + span::before {
+  content: " · ";
+}
+.build-rival-title {
+  margin-top: 16px;
+}
+
 .ui-slot {
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;

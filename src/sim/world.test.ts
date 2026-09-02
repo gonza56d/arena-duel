@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CONFIG, type GameConfig } from "../config";
 import { circleInsideSquare, circleIntersectsRect, circlesIntersect } from "./geometry";
+import { generateLoadout, validateLoadout } from "./loadout";
 import { isDead } from "./player";
+import { createRng } from "./rng";
 import { createWorld, damagePlayer, stepWorld } from "./world";
 
 describe("createWorld", () => {
@@ -31,6 +33,33 @@ describe("createWorld", () => {
   it("rejects an invalid config up front", () => {
     const bad: GameConfig = { ...CONFIG, player: { ...CONFIG.player, maxHp: 9.5 } };
     expect(() => createWorld({ seed: 1, config: bad })).toThrow(/Invalid game config/);
+  });
+
+  it("gives every player a valid loadout by default, deterministic per seed", () => {
+    const w = createWorld({ seed: 1 });
+    for (const p of w.players) expect(validateLoadout(p.loadout).ok).toBe(true);
+    expect(createWorld({ seed: 1 }).players.map((p) => p.loadout)).toEqual(w.players.map((p) => p.loadout));
+  });
+
+  it("keeps a seed's obstacle layout the same whether loadouts are passed or rolled", () => {
+    const rolled = createWorld({ seed: 5 });
+    const given = createWorld({ seed: 5, loadouts: [generateLoadout(createRng(1)), generateLoadout(createRng(2))] });
+    expect(given.obstacles).toEqual(rolled.obstacles);
+  });
+
+  it("uses the loadouts it is given, one per player", () => {
+    const a = generateLoadout(createRng(1));
+    const b = generateLoadout(createRng(2));
+    const w = createWorld({ seed: 1, loadouts: [a, b] });
+    expect(w.players[0].loadout).toBe(a);
+    expect(w.players[1].loadout).toBe(b);
+    expect(() => createWorld({ seed: 1, loadouts: [a] })).toThrow(/2 players with 1 loadouts/);
+  });
+
+  it("rejects an invalid loadout up front", () => {
+    const a = generateLoadout(createRng(1));
+    const over = { ...a, "dash.distance": a["dash.distance"] + 1 };
+    expect(() => createWorld({ seed: 1, loadouts: [a, over] })).toThrow(/Invalid loadout/);
   });
 });
 

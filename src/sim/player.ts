@@ -9,9 +9,12 @@
  *    alive and below max.
  *  - A player is dead when HP ≤ 0. HP is not clamped at 0 so overkill is
  *    visible; it is clamped at `maxHp` from above.
+ *  - Every player carries a `loadout` (its skill levels, see loadout.ts); it
+ *    is fixed for the whole match and is what skills read their stats from.
  */
 import { CONFIG, type GameConfig } from "../config";
 import type { Vec2 } from "./geometry";
+import type { Loadout } from "./loadout";
 
 export interface PlayerState {
   id: number;
@@ -22,9 +25,11 @@ export interface PlayerState {
   healTimerMs: number;
   /** Unit vector of the last non-zero movement (used by Dash later). */
   lastMoveDir: Vec2;
+  /** Skill levels for this match. Read values through `statValue`. */
+  readonly loadout: Loadout;
 }
 
-export function createPlayer(id: number, pos: Vec2, cfg: GameConfig = CONFIG): PlayerState {
+export function createPlayer(id: number, pos: Vec2, loadout: Loadout, cfg: GameConfig = CONFIG): PlayerState {
   return {
     id,
     pos: { x: pos.x, y: pos.y },
@@ -32,6 +37,7 @@ export function createPlayer(id: number, pos: Vec2, cfg: GameConfig = CONFIG): P
     hp: cfg.player.maxHp,
     healTimerMs: 0,
     lastMoveDir: { x: 1, y: 0 },
+    loadout,
   };
 }
 

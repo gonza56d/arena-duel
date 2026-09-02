@@ -2,6 +2,10 @@
 
 A rule, pattern or convention this project follows (naming, formats, repeated approach).
 
+## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
+
+What: Build rule checks (missing/unknown stat, non-integer, below level 1, above max, spend ≠ `build.points` with over/under-by) are collected into one `LoadoutValidation` rather than failing on the first, mirroring `validateConfig`'s error list · Why: the same check guards v1's generated builds and will validate v2's manual builder, where a UI wants to show every problem at once · Where: src/sim/loadout.ts, src/sim/loadout.test.ts.
+
 ## No gameplay literal outside `src/config.ts`; units are arena units / milliseconds / degrees; level arrays are 0-indexed
 
 What: Gameplay numbers never appear as literals outside `src/config.ts` — other modules read `CONFIG` (e.g. `ARENA_SIZE` in src/arena.ts is a re-export, the HUD reads `CONFIG.player.maxHp`). Distances are arena units, times milliseconds, angles degrees; skill level arrays are indexed from 0 (= "level 1" in the design doc) · Why: the whole point of the config module is that a tuning pass touches one file · Where: src/config.ts (header comment states the rules).
