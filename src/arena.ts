@@ -10,13 +10,15 @@
  * pixels change with the window.
  */
 
-/** The arena is a fixed 2100 × 2100-unit square (see game spec). */
-export const ARENA_SIZE = 2100;
+import { CONFIG, type Point } from "./config";
 
-export interface Point {
-  x: number;
-  y: number;
-}
+/**
+ * Side of the square arena in units. Sourced from the central tuning config —
+ * change `CONFIG.arena.size`, never this line.
+ */
+export const ARENA_SIZE = CONFIG.arena.size;
+
+export type { Point };
 
 /**
  * Maps arena-space (0..ARENA_SIZE on each axis) to canvas CSS pixels and back.

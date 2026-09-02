@@ -21,3 +21,11 @@ What: Login failures return an opaque 401 regardless of whether the email exists
 ## Password strength rule is minimum 8 characters with at least one letter and one digit; em…
 
 What: Password strength rule is minimum 8 characters with at least one letter and one digit; email is validated via `net/mail` and stored lowercased with a unique MongoDB index enforcing no duplicates · Why: — · Where: light-backend/internal/validate/validate.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-6 -->
+
+## No gameplay literal outside `src/config.ts`; units are arena units / milliseconds / degrees; level arrays are 0-indexed
+
+What: Gameplay numbers never appear as literals outside `src/config.ts` — other modules read `CONFIG` (e.g. `ARENA_SIZE` in src/arena.ts is a re-export, the HUD reads `CONFIG.player.maxHp`). Distances are arena units, times milliseconds, angles degrees; skill level arrays are indexed from 0 (= "level 1" in the design doc) · Why: the whole point of the config module is that a tuning pass touches one file · Where: src/config.ts (header comment states the rules).
+
+## Dev-only browser handle `window.arenaDebug` (gated on `import.meta.env.DEV`) exposes `config`, `world`, `damage(n, id)` and `step(ms, move)`
+
+What: In dev builds `main.ts` sets `window.arenaDebug = { config, world, damage(amount, playerId), step(ms, move) }`; `step` advances exactly `ms` of simulated time through `Game.advance` regardless of frame rate · Why: lets HP/heal/death and movement be exercised from the console (and from browser automation) deterministically; stripped from production builds by the DEV gate · Where: src/main.ts (`exposeDebug`), src/vite-env.d.ts (Vite client types).

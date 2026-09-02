@@ -17,3 +17,11 @@ What: The 'light' backend (accounts + auth, low-intensity requests) lives in its
 ## Data access goes through a `UserStore` interface with a MongoDB implementation and an in-…
 
 What: Data access goes through a `UserStore` interface with a MongoDB implementation and an in-memory fake implementation · Why: Lets handler/unit tests run against the in-memory fake with no live MongoDB required · Where: light-backend/internal/store/store.go, mongo.go, memory.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-3 -->
+
+## Simulation is a pure `src/sim/` layer; the client wraps it with `game.ts` (loop), `input.ts` (keys) and `renderer.ts` (draw)
+
+What: `src/sim/` (geometry, rng, obstacles, player, movement, world) has no DOM or timer dependencies: `createWorld({seed, config})` builds state and `stepWorld(world, inputs, dtMs)` advances it. The client layer wraps it: `game.ts` owns the requestAnimationFrame loop and exposes `Game.advance(elapsedMs, move)` (the single time→ticks→draw path), `input.ts` turns WASD/arrows into a direction vector, and `renderer.ts` draws a `World` through the shared `ArenaViewport` · Why: keeps everything the future game backend must re-run (movement, collision, HP) free of browser concerns and unit-testable · Where: src/sim/world.ts, src/game.ts, src/input.ts, src/renderer.ts, src/main.ts.
+
+## Movement collision = displace, then push out along minimum-translation vectors, then clamp; a move that cannot settle is cancelled
+
+What: `movePlayer` displaces the circle by `speed × dt`, then `resolvePosition` iterates (up to `sim.collisionIterations`, exiting early once nothing moves): push out of each obstacle (circle-vs-AABB MTV), push out of each other living player (circle-vs-circle MTV), clamp inside the arena. If the result still overlaps something, the move is cancelled and the player keeps its previous (known-free) position · Why: MTV push-out preserves the tangential component so players slide along walls naturally; the cancel fallback makes "never leaves the arena / never overlaps" an invariant instead of a hope · Where: src/sim/movement.ts, src/sim/geometry.ts.
