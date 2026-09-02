@@ -1,6 +1,6 @@
 # convention
 
-A rule the codebase follows — naming, patterns, and where things live.
+A rule, pattern or convention this project follows (naming, formats, repeated approach).
 
 ## No gameplay literal outside `src/config.ts`; units are arena units / milliseconds / degrees; level arrays are 0-indexed
 
@@ -30,18 +30,6 @@ What: Login failures return an opaque 401 regardless of whether the email exists
 
 What: Password strength rule is minimum 8 characters with at least one letter and one digit; email is validated via `net/mail` and stored lowercased with a unique MongoDB index enforcing no duplicates · Why: — · Where: light-backend/internal/validate/validate.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-6 -->
 
-## A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manual…
-
-What: A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manually driving/inspecting sim state from the browser console · Why: lets HP/heal/death and movement be poked and verified in a running browser without building full UI controls · Where: wired in src/main.ts / src/game.ts, dev builds only. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-11 -->
-
-## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
-
-What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
-
-## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
-
-What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
-
 ## Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange…
 
 What: Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange, purple, cyan, pink, white, black) and always persisted/returned as lowercase `#rrggbb`; new accounts start at `#ffffff` · Why: the client paints the player circle on a canvas, so a single hex form avoids every consumer re-mapping names to values; the preset list is a convenience for the UI picker · Where: light-backend/internal/validate/profile.go (`Color`, `DefaultColor`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-0 -->
@@ -53,3 +41,15 @@ What: Player name rule is 2–24 printable runes, trimmed, and not unique across
 ## Profile updates go through `PATCH /profile`, which binds a dedicated request struct conta…
 
 What: Profile updates go through `PATCH /profile`, which binds a dedicated request struct containing only `player_name` and `color` (both optional, at least one required); unknown keys such as `victories` are ignored, and a request with any invalid field is rejected whole with 400 · Why: the record counters must be impossible to set from the client, and a field-restricted bind type guarantees that structurally instead of by a runtime check · Where: light-backend/internal/handlers/profile.go, light-backend/internal/store/store.go (`ProfileUpdate`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-2 -->
+
+## A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manual…
+
+What: A dev-only `window.arenaDebug` handle exposes `damage(n)` and `step(ms, move)` for manually driving/inspecting sim state from the browser console · Why: lets HP/heal/death and movement be poked and verified in a running browser without building full UI controls · Where: wired in src/main.ts / src/game.ts, dev builds only. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-11 -->
+
+## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
+
+What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
+
+## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
+
+What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->

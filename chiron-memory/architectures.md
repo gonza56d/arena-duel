@@ -1,6 +1,6 @@
 # architecture
 
-How the system is put together — layers, boundaries, and how data flows.
+A structural/design choice: layers, module boundaries, where things live.
 
 ## Simulation is a pure `src/sim/` layer; the client wraps it with `game.ts` (loop), `input.ts` (keys) and `renderer.ts` (draw)
 
@@ -25,6 +25,14 @@ What: The 'light' backend (accounts + auth, low-intensity requests) lives in its
 ## Data access goes through a `UserStore` interface with a MongoDB implementation and an in-…
 
 What: Data access goes through a `UserStore` interface with a MongoDB implementation and an in-memory fake implementation · Why: Lets handler/unit tests run against the in-memory fake with no live MongoDB required · Where: light-backend/internal/store/store.go, mongo.go, memory.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-3 -->
+
+## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
+
+What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
+
+## Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is…
+
+What: Simulation logic lives in `src/sim/` as pure functions with no DOM dependency; CONFIG is passed in as a parameter rather than imported globally inside sim modules. · Why: lets unit tests override config values (e.g. double move speed) to verify behavior changes in isolation, and keeps the simulation reusable/deterministic. · Where: src/sim/*.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-2 -->
 
 ## The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) h…
 

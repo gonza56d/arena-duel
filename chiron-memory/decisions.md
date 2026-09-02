@@ -1,6 +1,6 @@
 # decision
 
-A choice made and the reasoning behind it — the path taken over the alternatives.
+A technical decision that was made and WHY (which alternatives were discarded).
 
 ## Every feel-affecting number lives in `src/config.ts` (`CONFIG: GameConfig`); simulation functions take a `GameConfig` parameter defaulting to `CONFIG`
 
@@ -38,6 +38,22 @@ What: Light backend (accounts/auth) built as new Go module in `light-backend/`, 
 
 What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
 
+## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
+
+What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
+
+## HP is not clamped at 0 when overkill damage is applied (e.g
+
+What: HP is not clamped at 0 when overkill damage is applied (e.g. 8 damage to a player at 3 HP leaves internal HP at -5); death is still determined purely by `hp <= 0`. · Why: deliberate judgment call to keep overkill amount visible/debuggable rather than hiding it. · Where: src/sim/player.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-8 -->
+
+## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
+
+What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
+
+## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
+
+What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
+
 ## All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/H…
 
 What: All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/HP/heal, sim tick, best-of options, per-skill stat tables) live in one typed `CONFIG` object · Why: v1 is a tuning instrument — changing one constant must change behavior everywhere with no other edits · Where: src/config.ts, with src/arena.ts re-exporting arena size from it instead of a local literal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-0 -->
@@ -61,11 +77,3 @@ What: HP is not clamped at 0 when damage is applied — a killing blow can leave
 ## Damage does not reset the heal-interval timer by default
 
 What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
-
-## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
-
-What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
-
-## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
-
-What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
