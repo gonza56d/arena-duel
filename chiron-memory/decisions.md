@@ -2,30 +2,6 @@
 
 A choice made and the reasoning behind it — the path taken over the alternatives.
 
-## Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rend…
-
-What: Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rendering · Why: lightest path to a TS canvas render loop with dev server + production build; only needed devDeps were `vite` and `typescript` · Where: package.json, tsconfig.json, src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-1 -->
-
-## Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any…
-
-What: Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any viewport below 800×600 CSS px, with an exact boundary (800×600 renders the game, 799×600 blocks it); re-evaluated live on resize · Why: — · Where: src/deviceGate.ts, wired in src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-4 -->
-
-## Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, offi…
-
-What: Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, official MongoDB driver, bcrypt for password hashing, and JWT (HS256) bearer tokens · Why: Gin+MongoDB were suggested by the work order; bcrypt is simpler and as battle-tested as argon2 for meeting the 'strong salted algorithm' requirement · Where: light-backend/go.mod <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-0 -->
-
-## Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions`…
-
-What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
-
-## Victories/games_played change only via UserStore.IncrementRecord, which has no HTTP endpoint in v1
-
-What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
-
-## configured_stats is reserved on the User model as map[string]int, omitempty, never written in v1
-
-What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
-
 ## Every feel-affecting number lives in `src/config.ts` (`CONFIG: GameConfig`); simulation functions take a `GameConfig` parameter defaulting to `CONFIG`
 
 What: Every feel-affecting number (arena size, spawn points, obstacle generation, player radius/speed/HP/heal, sim tick, per-skill stat tables, best-of options) lives in `src/config.ts` as one typed `CONFIG` object, and every simulation function takes a `GameConfig` parameter defaulting to `CONFIG` · Why: v1 is a tuning instrument — one edit must change behaviour everywhere; the injected parameter lets tests (and a future tuning UI) override values without touching the module · Where: src/config.ts, src/sim/*.ts (`cfg: GameConfig = CONFIG` on each function), src/arena.ts re-exports `ARENA_SIZE = CONFIG.arena.size` · Learned: `validateConfig()` runs at startup and in `createWorld`; it throws on fractional HP/heal/damage or impassable obstacle gaps so a mistyped value fails loudly instead of leaking a fractional HP mid-fight.
@@ -45,3 +21,51 @@ What: HP starts at `maxHp` and only ever changes by integers; `applyDamage` thro
 ## Unit tests use Vitest, colocated as `src/**/*.test.ts`, run with `npm test`
 
 What: Vitest is the test runner (devDependency); tests sit next to the code as `src/**/*.test.ts` and run with `npm test` (`vitest run`) · Why: the simulation is pure TypeScript with no DOM, so fast node tests cover the acceptance criteria directly (speed, edges, obstacles, HP) including config-override tests that prove one constant changes behaviour · Where: package.json scripts, src/config.test.ts, src/sim/*.test.ts · Learned: `tsconfig` includes `src`, so test files are type-checked by `npm run typecheck` too; Vite ignores them in builds because nothing imports them.
+
+## Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rend…
+
+What: Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rendering · Why: lightest path to a TS canvas render loop with dev server + production build; only needed devDeps were `vite` and `typescript` · Where: package.json, tsconfig.json, src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-1 -->
+
+## Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any…
+
+What: Desktop/device gate blocks phones (coarse pointer + no hover, or phone UA string) and any viewport below 800×600 CSS px, with an exact boundary (800×600 renders the game, 799×600 blocks it); re-evaluated live on resize · Why: — · Where: src/deviceGate.ts, wired in src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-4 -->
+
+## Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, offi…
+
+What: Light backend (accounts/auth) built as new Go module in `light-backend/`, using Gin, official MongoDB driver, bcrypt for password hashing, and JWT (HS256) bearer tokens · Why: Gin+MongoDB were suggested by the work order; bcrypt is simpler and as battle-tested as argon2 for meeting the 'strong salted algorithm' requirement · Where: light-backend/go.mod <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-0 -->
+
+## Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions`…
+
+What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
+
+## All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/H…
+
+What: All feel-affecting numbers (arena size, obstacle generation params, player radius/speed/HP/heal, sim tick, best-of options, per-skill stat tables) live in one typed `CONFIG` object · Why: v1 is a tuning instrument — changing one constant must change behavior everywhere with no other edits · Where: src/config.ts, with src/arena.ts re-exporting arena size from it instead of a local literal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-0 -->
+
+## Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, tim…
+
+What: Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, timings, cone degrees, size ratios) were added to CONFIG as data only, with no skill logic yet · Why: this work order builds only the foundation (arena, movement, collision, HP); skill behavior is a separate future work order that will consume this config · Where: CONFIG.skills in src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-12 -->
+
+## If collision resolution cannot find a valid non-overlapping position for a move, the whol…
+
+What: If collision resolution cannot find a valid non-overlapping position for a move, the whole move for that tick is cancelled rather than partially applied · Why: avoids leaving players in ambiguous partially-resolved states when squeezed between edge/obstacle/player · Where: src/sim/movement.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-14 -->
+
+## The client demo spawns a second player as a stationary dummy (not networked, not AI) pure…
+
+What: The client demo spawns a second player as a stationary dummy (not networked, not AI) purely so player-vs-player collision is visible in manual/browser testing · Why: v1 has no networking or NPC yet, but collision against another player still needed visual verification · Where: src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-15 -->
+
+## HP is not clamped at 0 when damage is applied — a killing blow can leave HP negative (ove…
+
+What: HP is not clamped at 0 when damage is applied — a killing blow can leave HP negative (overkill) · Why: deliberate judgment call to keep overkill damage visible in state rather than hiding it · Where: src/sim/player.ts applyDamage; death check is `hp <= 0` (isDead), not `hp === 0`. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-4 -->
+
+## Damage does not reset the heal-interval timer by default
+
+What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
+
+## The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRec…
+
+What: The record counters (`victories`, `games_played`) change only via `UserStore.IncrementRecord(ctx, id, won)` (Mongo `$inc`), and that method is deliberately not exposed over HTTP · Why: an authenticated client endpoint would let players record their own wins; the future match-end path (game backend or a trusted server-side call) is the intended caller · Where: light-backend/internal/store/store.go, mongo.go, memory.go · Learned: `IncrementRecord` is the seam to wire when the match-end flow exists; don't add a client-facing route for it <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-3 -->
+
+## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
+
+What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
