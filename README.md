@@ -102,7 +102,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 
 #### Dash
 
-- Cooldown: How much time the skill takes to refresh. *Levels [10, 9, 8, 7]*.
+- Cooldown: How much time the skill takes to refresh. *Levels [5, 4.5, 4, 3.5]*.
 - Distance: Allows the player to dash from 125 to 156.25 units. *Levels [125, 135, 145, 156.25]*.
 * Dash cannot cross obstacles.
 * Dash speed is set to take 100ms, regardless of the distance stat.
@@ -110,7 +110,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 
 #### Slash
 
-- Cooldown: How much time the skill takes to refresh. *Levels [4, 3.5, 3, 2.5]*.
+- Cooldown: How much time the skill takes to refresh. *Levels [2, 1.75, 1.5, 1.25]*.
 - Range: It sets how long the player sword is and how big the impact range will be. It starts from 50 units and max is 75. *Levels* [50, 59, 68, 75].
 - Area: It sets how big the cone area on which the player blends the sword will be and it's measured by degrees. This attribute sets where the hit starts and where it ends, while the cone is also affected by the *Range* attribute.(Think like "area is the width" and "range is the depth" of the hit, drawing a cone shape). *Levels [45, 60, 75, 90]*.
 - Damage: It sets how much HP the enemy player loses when hit. *Levels [2, 3, 4]*.
@@ -123,7 +123,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 
 #### Shot
 
-- Cooldown: How much time the skill takes to refresh. *Levels [10, 9, 8, 7]*.
+- Cooldown: How much time the skill takes to refresh. *Levels [5, 4.5, 4, 3.5]*.
 - Range: It sets how long the shot is. 
 - Damage: It sets how much HP the enemy player loses when hit. *Levels [2, 3, 4]*.
 * The speed of the bullet should be fixed and set to take 1 second to travel all the edge `y` vertically or `x` horizontally of the map. (Not calculated from diagonal travel).
@@ -133,7 +133,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 
 #### Shield
 
-- Cooldown: How much time the skill takes to refresh. *Levels [8, 7, 6, 5]*.
+- Cooldown: How much time the skill takes to refresh. *Levels [4, 3.5, 3, 2.5]*.
 * The shield blocks 100% of the damage.
 * It has no animation time.
 * It blocks in a 90 degrees cone facing the player's mouse pointer.
@@ -141,7 +141,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 
 #### Bash
 
-* Cooldown is always set to 5 seconds.
+* Cooldown is always set to 2.5 seconds.
 * Damage is always set to 1.
 * Slow is always set to last 1 second.
 * Slow is always set to reduce your enemy speed by 50%.

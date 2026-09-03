@@ -37,27 +37,27 @@ describe("CONFIG", () => {
 
   it("matches the design-doc skill numbers", () => {
     const { dash, slash, shot, shield, bash } = CONFIG.skills;
-    expect(dash.cooldownMs).toEqual([10_000, 9_000, 8_000, 7_000]);
+    expect(dash.cooldownMs).toEqual([5_000, 4_500, 4_000, 3_500]);
     expect(dash.distance).toEqual([125, 135, 145, 156.25]);
     expect(dash.durationMs).toBe(100);
-    expect(slash.cooldownMs).toEqual([4_000, 3_500, 3_000, 2_500]);
+    expect(slash.cooldownMs).toEqual([2_000, 1_750, 1_500, 1_250]);
     expect(slash.range).toEqual([50, 59, 68, 75]);
     expect(slash.areaDeg).toEqual([45, 60, 75, 90]);
     expect(slash.damage).toEqual([2, 3, 4]);
     expect(slash.windupMs).toBe(75);
     expect(slash.swingMs).toBe(50);
     expect(slash.bladeWidthRatio).toBe(0.1);
-    expect(shot.cooldownMs).toEqual([10_000, 9_000, 8_000, 7_000]);
+    expect(shot.cooldownMs).toEqual([5_000, 4_500, 4_000, 3_500]);
     expect(shot.damage).toEqual([2, 3, 4]);
     expect(shot.windupMs).toBe(50);
     expect(shot.travelArenaSideMs).toBe(1_000);
     expect(shot.bulletWidthRatio).toBe(0.5);
-    expect(shield.cooldownMs).toEqual([8_000, 7_000, 6_000, 5_000]);
+    expect(shield.cooldownMs).toEqual([4_000, 3_500, 3_000, 2_500]);
     expect(shield.blockFraction).toBe(1);
     expect(shield.coneDeg).toBe(90);
     expect(shield.windupMs).toBe(0);
     expect(bash).toEqual({
-      cooldownMs: 5_000,
+      cooldownMs: 2_500,
       damage: 1,
       slowDurationMs: 1_000,
       slowSpeedMultiplier: 0.5,
@@ -75,6 +75,24 @@ describe("CONFIG", () => {
     expect(CONFIG.player.moveSpeedUnitsPer100ms).toBeCloseTo(BASE_SPEED * 1.25);
     expect(CONFIG.skills.dash.distance).toHaveLength(BASE_DASH.length);
     CONFIG.skills.dash.distance.forEach((d, i) => expect(d).toBeCloseTo(BASE_DASH[i] * 1.25));
+  });
+
+  it("applies the cooldown tuning pass as a uniform −50% over the design-doc values", () => {
+    // Pre-cut design-doc cooldowns. Halving every level (and Bash's fixed
+    // value) keeps each skill's level-to-level progression exactly as documented.
+    const BASE_COOLDOWNS = {
+      dash: [10_000, 9_000, 8_000, 7_000],
+      slash: [4_000, 3_500, 3_000, 2_500],
+      shot: [10_000, 9_000, 8_000, 7_000],
+      shield: [8_000, 7_000, 6_000, 5_000],
+    } as const;
+    const BASE_BASH_COOLDOWN = 5_000;
+    for (const [skill, base] of Object.entries(BASE_COOLDOWNS) as [keyof typeof BASE_COOLDOWNS, readonly number[]][]) {
+      const actual = CONFIG.skills[skill].cooldownMs;
+      expect(actual).toHaveLength(base.length);
+      actual.forEach((cd, i) => expect(cd).toBe(base[i] / 2));
+    }
+    expect(CONFIG.skills.bash.cooldownMs).toBe(BASE_BASH_COOLDOWN / 2);
   });
 
   it("lets a bullet cross the whole arena by default (range ≥ diagonal)", () => {

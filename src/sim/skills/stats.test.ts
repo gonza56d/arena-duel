@@ -10,9 +10,9 @@ describe("skill stats", () => {
       { "dash.cooldownMs": 1, "dash.distance": 1, "slash.cooldownMs": 1, "slash.range": 1, "slash.areaDeg": 1, "slash.damage": 1, "shield.cooldownMs": 1 },
       ["shot.range", "shot.cooldownMs"],
     );
-    expect(resolveDash(lv)).toEqual({ cooldownMs: 10_000, distance: 125, durationMs: 100 });
+    expect(resolveDash(lv)).toEqual({ cooldownMs: 5_000, distance: 125, durationMs: 100 });
     expect(resolveSlash(lv)).toEqual({
-      cooldownMs: 4_000,
+      cooldownMs: 2_000,
       range: 50,
       areaDeg: 45,
       damage: 2,
@@ -20,8 +20,8 @@ describe("skill stats", () => {
       swingMs: 50,
       bladeWidth: 5,
     });
-    expect(resolveShot(lv)).toMatchObject({ cooldownMs: 7_000, range: 3_000, damage: 2, windupMs: 50, speed: 2.1, bulletRadius: 12.5 });
-    expect(resolveShield(lv)).toEqual({ cooldownMs: 8_000, blockFraction: 1, coneDeg: 90, windupMs: 0, activeMs: 500 });
+    expect(resolveShot(lv)).toMatchObject({ cooldownMs: 3_500, range: 3_000, damage: 2, windupMs: 50, speed: 2.1, bulletRadius: 12.5 });
+    expect(resolveShield(lv)).toEqual({ cooldownMs: 4_000, blockFraction: 1, coneDeg: 90, windupMs: 0, activeMs: 500 });
     expect(resolveBash()).toBe(CONFIG.skills.bash);
   });
 
@@ -31,9 +31,9 @@ describe("skill stats", () => {
     expect(slash.range).toBe(75);
     expect(slash.damage).toBe(4);
     expect(slash.areaDeg).toBe(45); // untouched stat stays at level 1
-    expect(slash.cooldownMs).toBe(4_000);
+    expect(slash.cooldownMs).toBe(2_000);
     expect(resolveDash(lv).distance).toBe(135);
-    expect(resolveDash(lv).cooldownMs).toBe(10_000);
+    expect(resolveDash(lv).cooldownMs).toBe(5_000);
   });
 
   it("read from the injected config", () => {
@@ -42,7 +42,7 @@ describe("skill stats", () => {
       skills: { ...CONFIG.skills, dash: { ...CONFIG.skills.dash, distance: [500, 600, 700, 800], durationMs: 250 } },
     };
     const lv = testLoadout({ "dash.cooldownMs": 1, "dash.distance": 1 }, ["shield.cooldownMs", "slash.range"], cfg);
-    expect(resolveDash(lv, cfg)).toEqual({ cooldownMs: 10_000, distance: 500, durationMs: 250 });
+    expect(resolveDash(lv, cfg)).toEqual({ cooldownMs: 5_000, distance: 500, durationMs: 250 });
   });
 
   it("reject levels outside the config tables (via statValue)", () => {

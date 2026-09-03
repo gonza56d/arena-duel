@@ -242,12 +242,12 @@ export const CONFIG: GameConfig = {
 
   skills: {
     dash: {
-      cooldownMs: [10_000, 9_000, 8_000, 7_000],
+      cooldownMs: [5_000, 4_500, 4_000, 3_500],
       distance: [125, 135, 145, 156.25],
       durationMs: 100,
     },
     slash: {
-      cooldownMs: [4_000, 3_500, 3_000, 2_500],
+      cooldownMs: [2_000, 1_750, 1_500, 1_250],
       range: [50, 59, 68, 75],
       areaDeg: [45, 60, 75, 90],
       damage: [2, 3, 4],
@@ -256,7 +256,7 @@ export const CONFIG: GameConfig = {
       bladeWidthRatio: 0.1,
     },
     shot: {
-      cooldownMs: [10_000, 9_000, 8_000, 7_000],
+      cooldownMs: [5_000, 4_500, 4_000, 3_500],
       range: [3_000, 3_000, 3_000, 3_000],
       damage: [2, 3, 4],
       windupMs: 50,
@@ -264,14 +264,14 @@ export const CONFIG: GameConfig = {
       bulletWidthRatio: 0.5,
     },
     shield: {
-      cooldownMs: [8_000, 7_000, 6_000, 5_000],
+      cooldownMs: [4_000, 3_500, 3_000, 2_500],
       blockFraction: 1,
       coneDeg: 90,
       windupMs: 0,
       activeMs: 500,
     },
     bash: {
-      cooldownMs: 5_000,
+      cooldownMs: 2_500,
       damage: 1,
       slowDurationMs: 1_000,
       slowSpeedMultiplier: 0.5,

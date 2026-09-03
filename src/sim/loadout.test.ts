@@ -170,8 +170,8 @@ describe("statValue", () => {
     expect(statValue(VALID, "slash.damage")).toBe(CONFIG.skills.slash.damage[2]); // level 3 → 4
     expect(statValue(VALID, "slash.range")).toBe(68);
     expect(statValue(VALID, "dash.distance")).toBe(135);
-    expect(statValue(VALID, "dash.cooldownMs")).toBe(10_000);
-    expect(statValue(VALID, "shield.cooldownMs")).toBe(7_000);
+    expect(statValue(VALID, "dash.cooldownMs")).toBe(5_000);
+    expect(statValue(VALID, "shield.cooldownMs")).toBe(3_500);
   });
 
   it("refuses a level outside the table instead of returning undefined", () => {
