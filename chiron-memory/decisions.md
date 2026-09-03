@@ -1,6 +1,6 @@
 # decision
 
-A technical decision that was made and WHY (which alternatives were discarded).
+A choice made and the reasoning behind it — the path taken over the alternatives.
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -205,6 +205,10 @@ What: The fog overlay is filled once as the union of all shadow wedges in a sing
 ## Chose to add an extra HUD grid row below the arena rather than folding footer text into t…
 
 What: Chose to add an extra HUD grid row below the arena rather than folding footer text into the HUD row · Why: cleaner separation and the footer text stays legible; trade-off accepted is the canvas shrinking from 488px to 376px square at the 800×600 minimum supported size · Where: index.html, src/style.css. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-1 -->
+
+## La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer)
+
+What: La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer) · Why: el viewer ya tiene la barra de 10 bloques del HUD; una barra flotante propia sería redundante · Where: src/renderer.ts (drawPlayers/drawHpBar) <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-12 -->
 
 ## Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash'…
 

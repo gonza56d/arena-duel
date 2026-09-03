@@ -1,6 +1,6 @@
 # convention
 
-A rule, pattern or convention this project follows (naming, formats, repeated approach).
+A rule the codebase follows — naming, patterns, and where things live.
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -182,6 +182,14 @@ What: Ability cooldown is visualized with a CSS conic-gradient sweep on each `.a
 
 What: chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts on it must be resolved by keeping both sides' entries concatenated, never by picking one side · Why: — · Where: chiron-memory/decisions.md · Learned: applied when merging origin/master — kept master's fog-readability entry followed by this branch's two HUD entries. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->
 
+## La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) conti…
+
+What: La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) continue` que ya gatea otros overlays por jugador dentro del loop `visible` · Why: el cuerpo ya se pinta gris al morir; no tiene sentido superponer una barra de HP · Where: src/renderer.ts <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-13 -->
+
+## Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la lí…
+
+What: Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la línea de controles en index.html, y el comentario de cabecera de src/input.ts · Why: son cuatro fuentes independientes que muestran/aplican el binding; olvidar una deja el HUD o la documentación desincronizados · Where: src/input.ts, index.html <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-7 -->
+
 ## README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds,…
 
 What: README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds, movement speed, dash distance), and config.test.ts has tests explicitly checking CONFIG matches those documented numbers · Why: keeps docs and tuning numbers in sync so the "matches design-doc numbers" tests stay meaningful · Where: README.md, src/config.ts, src/config.test.ts · Learned: any CONFIG numeric change should be mirrored in README's tuning tables. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-4 -->
@@ -193,6 +201,10 @@ What: config.test.ts includes guard tests asserting a tuned value is an exact ra
 ## Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values fr…
 
 What: Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values from CONFIG.skills or inject their own test-local cooldowns instead of hardcoding exact numbers, unlike stats.test.ts and loadout.test.ts which hardcode resolved values · Why: — · Where: src/sim/skills/*.test.ts · Learned: a cooldown-tuning pass only needs to ripple into stats.test.ts and loadout.test.ts, not the per-skill test files, since those already derive from CONFIG. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-7 -->
+
+## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
+
+What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->
 
 ## The floating HP bar is skipped for dead rivals, via the same `if (dead) continue` guard a…
 
@@ -217,7 +229,3 @@ What: The floating HP bar's fill/empty colors reuse the HUD bar's existing palet
 ## Small rendered elements enforce a minimum on-screen pixel floor for legibility at small v…
 
 What: Small rendered elements enforce a minimum on-screen pixel floor for legibility at small viewport scales (e.g. HP bar height min 3px) · Why: follows the same pattern already used for bullet sizing so tiny geometry doesn't disappear at low zoom · Where: src/renderer.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-5 -->
-
-## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
-
-What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->
