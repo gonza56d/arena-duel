@@ -58,26 +58,6 @@ What: Login failures return an opaque 401 regardless of whether the email exists
 
 What: Password strength rule is minimum 8 characters with at least one letter and one digit; email is validated via `net/mail` and stored lowercased with a unique MongoDB index enforcing no duplicates · Why: — · Where: light-backend/internal/validate/validate.go <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-6 -->
 
-## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
-
-What: `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.points` ≤ sum of each stat's max level · Why: guarantees a valid 16-point loadout is always constructible (every stat startable at 1, budget never unspendable or overflowing) before the generator even runs · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-5 -->
-
-## `statValue()` is the single bridge function that converts a loadout's 1-based level into…
-
-What: `statValue()` is the single bridge function that converts a loadout's 1-based level into the 0-indexed level-table lookup · Why/ · Why: — · Where: src/sim/loadout.ts · Learned: keeps the 1-based/0-indexed conversion in one place instead of scattering `-1` offsets across the codebase <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-7 -->
-
-## `validateLoadout()` returns every violation it finds, not just the first
-
-What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
-
-## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
-
-What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
-
-## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
-
-What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
-
 ## Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange…
 
 What: Player color is validated as `#RRGGBB` or a preset name (red, blue, green, yellow, orange, purple, cyan, pink, white, black) and always persisted/returned as lowercase `#rrggbb`; new accounts start at `#ffffff` · Why: the client paints the player circle on a canvas, so a single hex form avoids every consumer re-mapping names to values; the preset list is a convenience for the UI picker · Where: light-backend/internal/validate/profile.go (`Color`, `DefaultColor`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-0 -->
@@ -90,25 +70,25 @@ What: Player name rule is 2–24 printable runes, trimmed, and not unique across
 
 What: Profile updates go through `PATCH /profile`, which binds a dedicated request struct containing only `player_name` and `color` (both optional, at least one required); unknown keys such as `victories` are ignored, and a request with any invalid field is rejected whole with 400 · Why: the record counters must be impossible to set from the client, and a field-restricted bind type guarantees that structurally instead of by a runtime check · Where: light-backend/internal/handlers/profile.go, light-backend/internal/store/store.go (`ProfileUpdate`) <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-2 -->
 
-## Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms,…
+## The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP…
 
-What: Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms, i.e. 1s to cross the map) and is swept each tick against edges, obstacles and living players excluding its owner; the first contact stops it · Why: — · Where: src/sim/skills/shot.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-12 -->
+What: The HUD (src/main.ts) displays live HP plus a heal countdown timer, not just a static HP value · Why: — · Where: src/main.ts, driven by world/player state from src/sim/. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-16 -->
 
-## Because createWorld rolls a random per-player Loadout, skill unit tests pin only the leve…
+## `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if gen…
 
-What: Because createWorld rolls a random per-player Loadout, skill unit tests pin only the levels they assert on via a `testLoadout` helper, which fills remaining stat points into stats the test doesn't observe · Why: keeps skill tests deterministic without hand-writing full loadouts for every stat · Where: src/sim/skills/*.test.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-15 -->
+What: `validateConfig()` throws loudly if HP, damage, or heal values are non-integer, or if generation ranges are invalid (e.g. obstacle gaps too small to pass) · Why: HP/damage must always be integer per spec; catching a bad config at startup is cheaper than debugging a rounding bug mid-game · Where: src/config.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-3 -->
 
-## Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat…
+## `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.poi…
 
-What: Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat measured as the sector radius from that centre · Why: README doesn't specify apex/measurement point; centre-to-centre was chosen for consistency with the circle collision model · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-4 -->
+What: `validateConfig()` enforces a feasibility invariant: number of leveled stats ≤ `build.points` ≤ sum of each stat's max level · Why: guarantees a valid 16-point loadout is always constructible (every stat startable at 1, budget never unspendable or overflowing) before the generator even runs · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-5 -->
 
-## Slash records which targets it has already hit during the current swing, so the per-tick…
+## `statValue()` is the single bridge function that converts a loadout's 1-based level into…
 
-What: Slash records which targets it has already hit during the current swing, so the per-tick angular-slice test doesn't re-damage the same enemy on a later tick as the blade continues sweeping · Why: needed because contact is tested every tick rather than once per swing · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-22 -->
+What: `statValue()` is the single bridge function that converts a loadout's 1-based level into the 0-indexed level-table lookup · Why/ · Why: — · Where: src/sim/loadout.ts · Learned: keeps the 1-based/0-indexed conversion in one place instead of scattering `-1` offsets across the codebase <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-7 -->
 
-## Bullet radius and blade width are computed via derived helper functions in config.ts (bul…
+## `validateLoadout()` returns every violation it finds, not just the first
 
-What: Bullet radius and blade width are computed via derived helper functions in config.ts (bulletRadius, bladeWidth) from player-width ratios, rather than stored as standalone literal stat fields · Why: — · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-23 -->
+What: `validateLoadout()` returns every violation it finds, not just the first · Why: lets v2's manual builder surface full feedback on an invalid build in one pass, since it's meant to be reused as-is · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-9 -->
 
 ## POST /profile/record always increments games_played on a valid authenticated call, but on…
 
@@ -118,17 +98,37 @@ What: POST /profile/record always increments games_played on a valid authenticat
 
 What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
 
-## `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash…
-
-What: `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash trail, slash cone/blade, shield arc and bash cone whenever `canSee` says the body is out of sight (`playerInView`). Effects that are not anchored to a body — a rival's bullets, `bulletStop` impact rings and `hit` flashes — are tested at their own position with `inView(target)`, so a bullet is hidden while inside the fog and appears the moment it flies into sight (the same rule as a body stepping out). Anything owned by the viewer (`ownerId` / `attackerId` / `playerId` equal to the viewer) is drawn regardless. Supersedes the earlier rule that in-flight projectiles stayed visible in the fog · Why: playtest of milestone 1 — a hidden zombie's shots and impacts (bullets emerging from behind a wall, impact rings on the wall's far face) gave away its position; hiding a bullet only while its *shooter* is hidden was rejected because an incoming bullet in the open must stay visible · Where: src/renderer.ts (`viewerOf`, `inView`, `playerInView`, `drawProjectiles`, `drawEffects`) · Learned: with no `viewerId` (headless/debug draw) nothing is fogged; the fog layer and the occlusion rule both derive from the same `vision.ts` geometry so they never disagree. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
-
 ## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
 
 What: NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random interval, with occasional idle pauses) while skill use is pressing one currently-ready skill at random on a random cadence. · Why: gives an NPC that 'randomly moves and uses skills' per the work order's intent, distinct from a scripted or optimal opponent. · Where: src/sim/npc.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-9 -->
 
+## Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms,…
+
+What: Shot's bullet travels at a fixed speed derived from config (arena side length per 1000ms, i.e. 1s to cross the map) and is swept each tick against edges, obstacles and living players excluding its owner; the first contact stops it · Why: — · Where: src/sim/skills/shot.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-12 -->
+
+## Because createWorld rolls a random per-player Loadout, skill unit tests pin only the leve…
+
+What: Because createWorld rolls a random per-player Loadout, skill unit tests pin only the levels they assert on via a `testLoadout` helper, which fills remaining stat points into stats the test doesn't observe · Why: keeps skill tests deterministic without hand-writing full loadouts for every stat · Where: src/sim/skills/*.test.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-15 -->
+
+## Slash records which targets it has already hit during the current swing, so the per-tick…
+
+What: Slash records which targets it has already hit during the current swing, so the per-tick angular-slice test doesn't re-damage the same enemy on a later tick as the blade continues sweeping · Why: needed because contact is tested every tick rather than once per swing · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-22 -->
+
+## Bullet radius and blade width are computed via derived helper functions in config.ts (bul…
+
+What: Bullet radius and blade width are computed via derived helper functions in config.ts (bulletRadius, bladeWidth) from player-width ratios, rather than stored as standalone literal stat fields · Why: — · Where: src/config.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-23 -->
+
+## Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat…
+
+What: Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat measured as the sector radius from that centre · Why: README doesn't specify apex/measurement point; centre-to-centre was chosen for consistency with the circle collision model · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-4 -->
+
 ## The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status…
 
 What: The HUD shows the live round score and match outcome as "You X – Y Zombie" plus a status line (e.g. "Match won!") driven by `Match.roundsWon`/`phase`/`matchWinnerId` · Why: — · Where: src/main.ts, index.html, src/style.css <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-13 -->
+
+## `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash…
+
+What: `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash trail, slash cone/blade, shield arc and bash cone whenever `canSee` says the body is out of sight (`playerInView`). Effects that are not anchored to a body — a rival's bullets, `bulletStop` impact rings and `hit` flashes — are tested at their own position with `inView(target)`, so a bullet is hidden while inside the fog and appears the moment it flies into sight (the same rule as a body stepping out). Anything owned by the viewer (`ownerId` / `attackerId` / `playerId` equal to the viewer) is drawn regardless. Supersedes the earlier rule that in-flight projectiles stayed visible in the fog · Why: playtest of milestone 1 — a hidden zombie's shots and impacts (bullets emerging from behind a wall, impact rings on the wall's far face) gave away its position; hiding a bullet only while its *shooter* is hidden was rejected because an incoming bullet in the open must stay visible · Where: src/renderer.ts (`viewerOf`, `inView`, `playerInView`, `drawProjectiles`, `drawEffects`) · Learned: with no `viewerId` (headless/debug draw) nothing is fogged; the fog layer and the occlusion rule both derive from the same `vision.ts` geometry so they never disagree. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
 
 ## The root `.env` file (used only for docker-compose variable interpolation) is gitignored,…
 
@@ -181,3 +181,19 @@ What: chiron-memory/decisions.md is an append-only log of independent entries; m
 ## A rival's floating HP bar is drawn inside `drawPlayers`' `visible` loop, so it has no fog geometry of its own
 
 What: `renderer.ts` draws a bar above every *visible* rival — not the viewer (it reads its own HP on the HUD) and not a dead body — via the pure `hpBarLayout(body, maxHp, viewport)`: width 4 r, height 0.5 r (min 3 px), bottom edge 0.7 r above the circle, all converted through `ArenaViewport`; fill = `hp / maxHp` clamped to [0, 1]; colours reuse the HUD reds (`#e2322a` filled / `#4a1512` empty) · Why: the work order asked for a bar that "replicates the enemy body's fog calculations" — living in the same `playerInView` filter as the body makes bar and body structurally unable to disagree, with zero extra `canSee` calls; a continuous fill was chosen over 10 blocks because the body is ~10 px wide on a typical canvas · Where: src/renderer.ts (`HP_BAR`, `hpBarLayout`, `drawHpBar`), src/renderer.test.ts · Learned: renderer.ts imports cleanly in vitest/node as long as everything DOM-bound stays inside `createRenderer`, so pure layout helpers can be exported and tested.
+
+## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
+
+What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->
+
+## README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds,…
+
+What: README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds, movement speed, dash distance), and config.test.ts has tests explicitly checking CONFIG matches those documented numbers · Why: keeps docs and tuning numbers in sync so the "matches design-doc numbers" tests stay meaningful · Where: README.md, src/config.ts, src/config.test.ts · Learned: any CONFIG numeric change should be mirrored in README's tuning tables. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-4 -->
+
+## config.test.ts includes guard tests asserting a tuned value is an exact ratio of its prio…
+
+What: config.test.ts includes guard tests asserting a tuned value is an exact ratio of its prior baseline (e.g. an existing +25% mobility guard, now a ×0.5 cooldown guard) rather than only checking absolute numbers · Why: — · Where: src/config.test.ts · Learned: when making a ratio-based tuning change, add a corresponding ratio-guard test alongside the updated absolute expectations. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-5 -->
+
+## Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values fr…
+
+What: Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values from CONFIG.skills or inject their own test-local cooldowns instead of hardcoding exact numbers, unlike stats.test.ts and loadout.test.ts which hardcode resolved values · Why: — · Where: src/sim/skills/*.test.ts · Learned: a cooldown-tuning pass only needs to ripple into stats.test.ts and loadout.test.ts, not the per-skill test files, since those already derive from CONFIG. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-7 -->
