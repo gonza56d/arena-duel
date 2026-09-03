@@ -46,9 +46,9 @@ What: `triggerX` checks `isReady` (remaining ≤ 0), then sets `cooldowns[x] = c
 
 What: Space raises the shield instantly for `CONFIG.skills.shield.activeMs` (500 ms, invented — the design doc gives no duration); the cooldown starts at activation; `shieldBlocks(defender, sourcePos, coneDeg)` checks the damage *source* (attacker centre for Slash/Bash, bullet centre for Shot) against a 90° cone around the defender's current `aimDir`; a blocked Bash also applies no slow · Why: hold-to-block would make the 8 s cooldown meaningless (perma-block) and the game is about reaction timing, so a short parry window fits; "blocks 100% of the damage" was read literally over the flavour text that names only slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts (`dealDamage` is the single damage path) · Learned: shields tick *after* all offense in the tick (`tickShields`), so a shield raised this tick protects the whole tick and one expiring protects through its last tick.
 
-## Bash is bound to `E`; Shot to Alt or ⌘; Dash to left Shift only; Slash to left/right mouse; Shield to Space
+## Bash is bound to `E`; Shot to `C`; Dash to left Shift only; Slash to left/right mouse; Shield to Space
 
-What: key bindings live in src/input.ts (`SKILL_KEYS`, `MOUSE_BUTTONS`), not in CONFIG; Bash (unspecified in the design doc) uses `KeyE` · Why: the other skills use non-letter keys so WASD stays free; Ctrl was rejected because Ctrl+W/S/A/D fire browser shortcuts (close tab, save, bookmark) mid-fight — the same hazard exists for ⌘ (Shot) on macOS, so Alt is the safer of the two keys the doc names · Where: src/input.ts · Learned: skill presses are edge-triggered (`e.repeat` ignored) and consumed once per `Game.advance`; a frame that runs zero ticks carries the presses to the next frame so clicks are never lost at >100 fps.
+What: key bindings live in src/input.ts (`SKILL_KEYS`, `MOUSE_BUTTONS`, `KEY_HINTS`), not in CONFIG; Bash uses `KeyE` and Shot `KeyC`; the design doc's Ctrl / Alt / ⌘ are bound to nothing and left to the browser (no `preventDefault`) · Why: modifier keys are unsafe mid-fight — Ctrl+W/S/A/D and ⌘+W fire browser shortcuts (close tab, save, bookmark) and Alt focuses the menu bar in some browsers; a plain letter beside WASD also keeps the hand in place while moving. Supersedes the earlier Alt / ⌘ binding for Shot (playability pass, 2026-09-03) · Where: src/input.ts, src/input.test.ts ("skill key bindings"), index.html controls line · Learned: skill presses are edge-triggered (`e.repeat` ignored) and consumed once per `Game.advance`; a frame that runs zero ticks carries the presses to the next frame so clicks are never lost at >100 fps.
 
 ## Slash and Bash cones have their apex at the player's centre; range is the sector radius from the centre
 
@@ -160,7 +160,7 @@ What: Slash's secondary swing is bound to the right mouse button, so input.ts su
 
 ## Bash is bound to key `E`, not Ctrl
 
-What: Bash is bound to key `E`, not Ctrl · Why: Ctrl+W/S/D fire browser shortcuts mid-fight; the same hazard exists for Cmd (used for Shot) on macOS, but Alt is the safe binding of the two names the README gives · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
+What: Bash is bound to key `E` and Shot to key `C`, never Ctrl / ⌘ / Alt · Why: Ctrl+W/S/D and ⌘+W fire browser shortcuts (close tab!) mid-fight and Alt focuses the menu bar in some browsers · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
 
 ## The client posts match results to the backend best-effort: it reads a bearer token from l…
 

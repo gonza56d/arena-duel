@@ -121,3 +121,7 @@ What: `shadowPolygons`'s wedge vertices must be ordered consistently relative to
 ## `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame
 
 What: `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame · Why: — · Where: src/game.ts (arenaDebug), used during browser verification of src/hud.ts · Learned: pass a positive ms value when driving sim state for manual/HUD verification, not 0. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-6 -->
+
+## In a hidden Chrome tab `requestAnimationFrame` never fires, so the game loop and any `await nextFrame()` stall
+
+What: when driving the app through claude-in-chrome the tab is often `document.hidden`; the RAF-driven `Game` loop stops, the canvas is not redrawn and a script awaiting a frame hangs until the CDP timeout · Why: browsers pause RAF for hidden tabs · Where: src/game.ts (loop), src/main.ts (`arenaDebug`) · Learned: use `arenaDebug.step(CONFIG.sim.tickMs)` as the sync point — it runs `Game.advance`, which ticks *and* draws synchronously — then read pixels with `getImageData` (multiply CSS px by `devicePixelRatio`); `nextRound()` re-rolls the obstacle layout, so find fogged spots by scanning `canSee` instead of hardcoding coordinates.

@@ -13,10 +13,15 @@
  *  - the fog *layer* shades every zone the viewer has no sight line to (the
  *    shadow wedges from `shadowPolygons`), so the boundary reads at a glance;
  *  - *occlusion* skips anything of a rival's the viewer cannot see — its body,
- *    indicators and skill visuals follow the body's `canSee`, and free-flying
- *    effects (bullets, impacts, hit flashes) are tested at their own position,
- *    so a bullet is hidden inside the fog and appears as it flies into sight.
+ *    indicators, floating HP bar and skill visuals follow the body's `canSee`,
+ *    and free-flying effects (bullets, impacts, hit flashes) are tested at their
+ *    own position, so a bullet is hidden inside the fog and appears as it flies
+ *    into sight.
  * The viewer's own effects are always drawn.
+ *
+ * A rival's HP bar floats above its body and is drawn in the same pass as the
+ * body, so it has no fog geometry of its own: it shows exactly when the body
+ * does. The viewer reads its own HP on the HUD and gets no floating bar.
  */
 import { ARENA_SIZE, ArenaViewport } from "./arena";
 import type { WorldEvent } from "./sim/events";
@@ -57,7 +62,49 @@ const COLORS = {
   hit: "rgba(255, 80, 80, 0.9)",
   blocked: "rgba(120, 220, 255, 0.9)",
   impact: "rgba(255, 233, 168, 0.8)",
+  hpFill: "#e2322a", // same reds as the HUD's health blocks (style.css --hp-full / --hp-empty)
+  hpEmpty: "#4a1512",
+  hpEdge: "rgba(0, 0, 0, 0.6)",
 };
+
+/**
+ * Floating HP bar proportions, as multiples of the body radius so the bar
+ * scales with the body through the viewport. `minHeightPx` keeps it legible on
+ * small canvases, the way bullets keep a 2 px minimum.
+ */
+const HP_BAR = { widthRadii: 4, heightRadii: 0.5, gapRadii: 0.7, minHeightPx: 3 };
+
+export interface HpBarLayout {
+  /** Bar rectangle in canvas CSS px: the background / outline. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Filled share of the width, HP over max clamped to [0, 1]. */
+  fraction: number;
+}
+
+/**
+ * Where a body's HP bar goes: centred on the body, its bottom edge a fixed gap
+ * above the top of the circle, everything converted through the viewport.
+ * Pure so it can be unit-tested without a canvas.
+ */
+export function hpBarLayout(
+  body: { pos: { x: number; y: number }; radius: number; hp: number },
+  maxHp: number,
+  viewport: ArenaViewport,
+): HpBarLayout {
+  const w = viewport.unitsToPixels(body.radius * HP_BAR.widthRadii);
+  const h = Math.max(HP_BAR.minHeightPx, viewport.unitsToPixels(body.radius * HP_BAR.heightRadii));
+  const anchor = viewport.arenaToScreen(body.pos.x, body.pos.y - body.radius * (1 + HP_BAR.gapRadii));
+  return {
+    x: anchor.x - w / 2,
+    y: anchor.y - h,
+    w,
+    h,
+    fraction: Math.min(1, Math.max(0, body.hp / maxHp)),
+  };
+}
 
 export interface Renderer {
   viewport: ArenaViewport;
@@ -243,11 +290,29 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
   /**
    * Is `player` drawn? A viewer always sees itself; a rival is hidden when every
    * sight line to its body is blocked by an obstacle. Everything anchored to a
-   * player (indicators, dash trail, slash, shield, bash cone) follows this.
+   * player (indicators, HP bar, dash trail, slash, shield, bash cone) follows
+   * this.
    */
   function playerInView(world: World, viewer: PlayerState | null, player: PlayerState): boolean {
     if (viewer === null || player.id === viewer.id) return true;
     return inView(world, viewer, { pos: player.pos, radius: player.radius });
+  }
+
+  /**
+   * Floating HP bar over a rival. Only ever called for a player already in the
+   * `visible` list, so it has no fog test of its own: drawn iff the body is.
+   * The viewer reads its own HP on the HUD, so it gets none.
+   */
+  function drawHpBar(world: World, viewer: PlayerState | null, player: PlayerState): void {
+    if (viewer && player.id === viewer.id) return;
+    const bar = hpBarLayout(player, world.config.player.maxHp, viewport);
+    ctx!.fillStyle = COLORS.hpEmpty;
+    ctx!.fillRect(bar.x, bar.y, bar.w, bar.h);
+    ctx!.fillStyle = COLORS.hpFill;
+    ctx!.fillRect(bar.x, bar.y, bar.w * bar.fraction, bar.h);
+    ctx!.strokeStyle = COLORS.hpEdge;
+    ctx!.lineWidth = 1;
+    ctx!.strokeRect(bar.x, bar.y, bar.w, bar.h);
   }
 
   function drawPlayers(world: World, viewer: PlayerState | null): void {
@@ -295,6 +360,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
 
       drawSlash(player);
       drawShield(world, player);
+      drawHpBar(world, viewer, player);
     }
   }
 

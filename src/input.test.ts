@@ -122,3 +122,52 @@ describe("gameplay-vs-UI gate", () => {
     expect(fire("contextmenu").defaultPrevented).toBe(false);
   });
 });
+
+describe("skill key bindings", () => {
+  it("fires Shot on C, once per press, and keeps the key from the page", () => {
+    const { input, fire } = setup();
+    const e = fire("keydown", { code: "KeyC", repeat: false });
+    expect(input.consumeTriggers()).toEqual({ shot: true });
+    expect(e.defaultPrevented).toBe(true);
+    expect(input.consumeTriggers()).toEqual({}); // one-shot
+  });
+
+  it("ignores key repeat while C is held", () => {
+    const { input, fire } = setup();
+    fire("keydown", { code: "KeyC", repeat: false });
+    fire("keydown", { code: "KeyC", repeat: true });
+    fire("keydown", { code: "KeyC", repeat: true });
+    expect(input.consumeTriggers()).toEqual({ shot: true });
+    expect(input.consumeTriggers()).toEqual({});
+  });
+
+  it("no longer fires Shot on ⌘ or Alt, and leaves those keys to the browser", () => {
+    const { input, fire } = setup();
+    for (const code of ["MetaLeft", "MetaRight", "AltLeft", "AltRight"]) {
+      const e = fire("keydown", { code, repeat: false });
+      expect(e.defaultPrevented).toBe(false);
+    }
+    expect(input.consumeTriggers()).toEqual({});
+  });
+
+  it("does not collide with movement or the other skills", () => {
+    const { input, fire } = setup();
+    fire("keydown", { code: "KeyW", repeat: false });
+    fire("keydown", { code: "KeyD", repeat: false });
+    fire("keydown", { code: "KeyC", repeat: false });
+    fire("keydown", { code: "KeyE", repeat: false });
+    fire("keydown", { code: "ShiftLeft", repeat: false });
+    fire("keydown", { code: "Space", repeat: false });
+    fire("mousedown", { button: 0, clientX: 600, clientY: 400 });
+    expect(input.direction()).toEqual({ x: 1, y: -1 }); // C is not a movement key
+    expect(input.consumeTriggers()).toEqual({
+      shot: true,
+      bash: true,
+      dash: true,
+      shield: true,
+      slashPrimary: true,
+    });
+    fire("keyup", { code: "KeyC" });
+    expect(input.direction()).toEqual({ x: 1, y: -1 }); // releasing C touches no axis
+  });
+});

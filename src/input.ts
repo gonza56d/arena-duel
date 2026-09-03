@@ -15,10 +15,13 @@
  *    other UI can use the mouse natively without gameplay stealing its clicks.
  *  - Skills: edge-triggered. A key/button press queues a one-shot trigger that
  *    the game loop consumes on its next tick; holding a key does not repeat.
- *      Dash  left Shift          Shot   Alt or ⌘ (Meta)
+ *      Dash  left Shift          Shot   C
  *      Slash left / right click  Shield Space
- *      Bash  E (the design doc leaves this key open; Ctrl was avoided because
- *            Ctrl+W/S/A/D fire browser shortcuts mid-fight)
+ *      Bash  E
+ *    Skill keys are plain letters/Space/Shift on purpose: the design doc named
+ *    Ctrl and ⌘ (Alt / Meta), but Ctrl+W/S/A/D and ⌘+W fire browser shortcuts
+ *    (close tab, save, bookmark) mid-fight, and Alt focuses the menu bar in
+ *    some browsers — so Shot moved to C and Bash to E.
  *
  * Keys are released on window blur so a player never keeps running after
  * alt-tabbing. Bindings are UI, not gameplay, so they live here, not in CONFIG.
@@ -41,10 +44,7 @@ const KEY_TO_AXIS: Record<string, Vec2> = {
 export const SKILL_KEYS: Record<string, keyof SkillTriggers> = {
   ShiftLeft: "dash",
   Space: "shield",
-  AltLeft: "shot",
-  AltRight: "shot",
-  MetaLeft: "shot",
-  MetaRight: "shot",
+  KeyC: "shot",
   KeyE: "bash",
 };
 
@@ -58,7 +58,7 @@ export const MOUSE_BUTTONS: Record<number, keyof SkillTriggers> = {
 export const KEY_HINTS: Record<"dash" | "slash" | "shot" | "shield" | "bash", string> = {
   dash: "L-Shift",
   slash: "L / R click",
-  shot: "Alt / ⌘",
+  shot: "C",
   shield: "Space",
   bash: "E",
 };
@@ -104,7 +104,7 @@ export function createInput(
     const skill = SKILL_KEYS[e.code];
     if (!skill) return;
     if (!e.repeat) pending[skill] = true;
-    e.preventDefault(); // Space scrolls; Alt focuses the menu bar in some browsers
+    e.preventDefault(); // Space would scroll the page
   };
   const onKeyUp = (e: KeyboardEvent): void => {
     held.delete(e.code);
