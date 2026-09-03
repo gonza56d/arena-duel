@@ -8,6 +8,15 @@
  * shield arc, bullets) plus the recent world events (hit flashes, bullet
  * impacts, bash cones). Presentation-only constants (colours, flash duration)
  * live here; every gameplay number still comes from the world's config.
+ *
+ * Fog of war, when a `viewerId` is given, has two halves that must agree:
+ *  - the fog *layer* shades every zone the viewer has no sight line to (the
+ *    shadow wedges from `shadowPolygons`), so the boundary reads at a glance;
+ *  - *occlusion* skips anything of a rival's the viewer cannot see — its body,
+ *    indicators and skill visuals follow the body's `canSee`, and free-flying
+ *    effects (bullets, impacts, hit flashes) are tested at their own position,
+ *    so a bullet is hidden inside the fog and appears as it flies into sight.
+ * The viewer's own effects are always drawn.
  */
 import { ARENA_SIZE, ArenaViewport } from "./arena";
 import type { WorldEvent } from "./sim/events";
@@ -15,7 +24,7 @@ import { angleOf, degToRad } from "./sim/geometry";
 import { isDead, type PlayerState } from "./sim/player";
 import { isShieldUp } from "./sim/skills/shield";
 import { bladeAngle, swingProgress } from "./sim/skills/slash";
-import { canSee } from "./sim/vision";
+import { canSee, shadowPolygons, type VisionTarget } from "./sim/vision";
 import type { World } from "./sim/world";
 
 const GRID_STEP_UNITS = 300; // reference grid every 300 units (7 × 7 cells).
@@ -26,8 +35,9 @@ export const FX_LINGER_MS = 350;
 export type TimedEvent = WorldEvent & { atMs: number };
 
 const COLORS = {
-  arena: "#0b1a14",
-  grid: "rgba(120, 200, 160, 0.15)",
+  arena: "#16332a", // lit floor — kept a shade brighter than before so the fog contrasts
+  grid: "rgba(140, 220, 180, 0.2)",
+  fog: "rgba(2, 5, 10, 0.72)", // painted over the floor wherever the viewer has no sight line
   boundary: "rgba(226, 85, 78, 0.9)",
   obstacleFill: "#2a3341",
   obstacleEdge: "#3d4a5e",
@@ -53,7 +63,8 @@ export interface Renderer {
   viewport: ArenaViewport;
   /**
    * Draw one frame of the given world with the recent effects. When `viewerId`
-   * is given, fog of war hides rivals that player cannot see past the obstacles.
+   * is given, fog of war shades every zone that player has no sight line to and
+   * hides rivals — and everything they do — while out of that player's sight.
    */
   draw(world: World, fx?: readonly TimedEvent[], viewerId?: number): void;
   stop(): void;
@@ -108,6 +119,35 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx!.lineTo(topLeft.x + size, v.y);
     }
     ctx!.stroke();
+  }
+
+  /**
+   * Fog layer: shade every zone the viewer cannot see. All wedges go into one
+   * path and one fill so overlapping shadows never darken twice. Drawn under
+   * the obstacles, which therefore stay bright and readable as cover.
+   */
+  function drawFog(world: World, viewer: PlayerState): void {
+    const wedges = shadowPolygons(viewer.pos, world.obstacles);
+    if (wedges.length === 0) return;
+    const topLeft = at(0, 0);
+    const size = viewport.drawnSize;
+    ctx!.save();
+    ctx!.beginPath();
+    ctx!.rect(topLeft.x, topLeft.y, size, size); // never shade the letterbox
+    ctx!.clip();
+    ctx!.beginPath();
+    for (const poly of wedges) {
+      const first = at(poly[0].x, poly[0].y);
+      ctx!.moveTo(first.x, first.y);
+      for (let i = 1; i < poly.length; i++) {
+        const v = at(poly[i].x, poly[i].y);
+        ctx!.lineTo(v.x, v.y);
+      }
+      ctx!.closePath();
+    }
+    ctx!.fillStyle = COLORS.fog;
+    ctx!.fill("nonzero");
+    ctx!.restore();
   }
 
   function drawObstacles(world: World): void {
@@ -186,19 +226,32 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
   }
 
   /**
-   * Fog of war: from `viewerId`'s eyes, is `player` in view? A viewer always
-   * sees itself; a rival is hidden when every sight line to it is blocked by an
-   * obstacle. With no viewer (e.g. a headless/debug draw) everything is shown.
+   * Fog of war: whose eyes are we drawing through? `null` means no fog at all
+   * (no `viewerId`, or one that is not in this world — e.g. a headless/debug
+   * draw): everything is shown.
    */
-  function isInView(world: World, player: PlayerState, viewerId?: number): boolean {
-    if (viewerId === undefined || player.id === viewerId) return true;
-    const viewer = world.players.find((p) => p.id === viewerId);
-    if (!viewer) return true;
-    return canSee(viewer.pos, { pos: player.pos, radius: player.radius }, world.obstacles);
+  function viewerOf(world: World, viewerId?: number): PlayerState | null {
+    if (viewerId === undefined) return null;
+    return world.players.find((p) => p.id === viewerId) ?? null;
   }
 
-  function drawPlayers(world: World, viewerId?: number): void {
-    const visible = world.players.filter((p) => isInView(world, p, viewerId));
+  /** Is the circle `target` in `viewer`'s sight (or is there no fog)? */
+  function inView(world: World, viewer: PlayerState | null, target: VisionTarget): boolean {
+    return viewer === null || canSee(viewer.pos, target, world.obstacles);
+  }
+
+  /**
+   * Is `player` drawn? A viewer always sees itself; a rival is hidden when every
+   * sight line to its body is blocked by an obstacle. Everything anchored to a
+   * player (indicators, dash trail, slash, shield, bash cone) follows this.
+   */
+  function playerInView(world: World, viewer: PlayerState | null, player: PlayerState): boolean {
+    if (viewer === null || player.id === viewer.id) return true;
+    return inView(world, viewer, { pos: player.pos, radius: player.radius });
+  }
+
+  function drawPlayers(world: World, viewer: PlayerState | null): void {
+    const visible = world.players.filter((p) => playerInView(world, viewer, p));
 
     for (const player of visible) drawDashTrail(player);
 
@@ -245,9 +298,11 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
-  function drawProjectiles(world: World): void {
+  /** Bullets: the viewer's own always; a rival's only where it is in sight. */
+  function drawProjectiles(world: World, viewer: PlayerState | null): void {
     ctx!.fillStyle = COLORS.bullet;
     for (const b of world.projectiles) {
+      if (viewer && b.ownerId !== viewer.id && !inView(world, viewer, b)) continue;
       const c = at(b.pos.x, b.pos.y);
       ctx!.beginPath();
       ctx!.arc(c.x, c.y, Math.max(2, px(b.radius)), 0, Math.PI * 2);
@@ -255,14 +310,21 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
-  function drawEffects(world: World, fx: readonly TimedEvent[]): void {
+  /**
+   * One-off effects. The viewer's own (as attacker / shooter / caster) are
+   * always shown; a rival's hit flashes and bullet impacts only where they land
+   * in sight, and its bash cone only while the rival itself is in view.
+   */
+  function drawEffects(world: World, fx: readonly TimedEvent[], viewer: PlayerState | null): void {
     const bash = world.config.skills.bash;
+    const pointRadius = world.config.player.radius; // generous: a flash the size of a body
     for (const e of fx) {
       const age = (world.timeMs - e.atMs) / FX_LINGER_MS; // 0 fresh → 1 gone
       const alpha = Math.max(0, 1 - age);
       ctx!.globalAlpha = alpha;
       switch (e.type) {
         case "hit": {
+          if (viewer && e.attackerId !== viewer.id && !inView(world, viewer, { pos: e.pos, radius: pointRadius })) break;
           const c = at(e.pos.x, e.pos.y);
           ctx!.strokeStyle = e.blocked ? COLORS.blocked : COLORS.hit;
           ctx!.lineWidth = 3;
@@ -272,6 +334,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
           break;
         }
         case "bulletStop": {
+          if (viewer && e.ownerId !== viewer.id && !inView(world, viewer, { pos: e.pos, radius: pointRadius })) break;
           const c = at(e.pos.x, e.pos.y);
           ctx!.strokeStyle = COLORS.impact;
           ctx!.lineWidth = 2;
@@ -283,7 +346,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
         case "skill": {
           if (e.skill !== "bash") break;
           const p = world.players.find((q) => q.id === e.playerId);
-          if (!p) break;
+          if (!p || !playerInView(world, viewer, p)) break;
           const a = angleOf(p.bash?.dir ?? p.aimDir);
           const half = degToRad(bash.coneDeg) / 2;
           sector(p.pos, a - half, a + half, bash.range);
@@ -313,14 +376,16 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     viewport,
     draw(world: World, fx: readonly TimedEvent[] = [], viewerId?: number): void {
       ctx!.clearRect(0, 0, viewport.canvasCssWidth, viewport.canvasCssHeight);
+      const viewer = viewerOf(world, viewerId);
       drawArena();
+      if (viewer) drawFog(world, viewer);
       drawObstacles(world);
-      // Fog hides rival bodies and their indicators; projectiles and transient
-      // effects in the open stay visible (a bullet mid-flight is legitimately
-      // seen even if the shooter is behind cover).
-      drawPlayers(world, viewerId);
-      drawProjectiles(world);
-      drawEffects(world, fx);
+      // Everything below is fog-occluded from the viewer's eyes: a rival and
+      // all it does are hidden while out of sight; its bullets and impacts only
+      // where they are in sight; the viewer's own effects always.
+      drawPlayers(world, viewer);
+      drawProjectiles(world, viewer);
+      drawEffects(world, fx, viewer);
       drawBoundary();
     },
     stop(): void {
