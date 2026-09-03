@@ -1,6 +1,6 @@
 # gotcha
 
-A non-obvious pitfall or trap, learned the hard way.
+Something non-obvious that failed or must be kept in mind to avoid repeating (bugs, surprises, lessons).
 
 ## MTV push-out leaves shapes overlapping by ~1e-14 unless a contact skin is added
 

@@ -1,6 +1,6 @@
 # decision
 
-A choice made and the reasoning behind it — the path taken over the alternatives.
+A technical decision that was made and WHY (which alternatives were discarded).
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -206,10 +206,6 @@ What: The fog overlay is filled once as the union of all shadow wedges in a sing
 
 What: Chose to add an extra HUD grid row below the arena rather than folding footer text into the HUD row · Why: cleaner separation and the footer text stays legible; trade-off accepted is the canvas shrinking from 488px to 376px square at the 800×600 minimum supported size · Where: index.html, src/style.css. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-1 -->
 
-## La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer)
-
-What: La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer) · Why: el viewer ya tiene la barra de 10 bloques del HUD; una barra flotante propia sería redundante · Where: src/renderer.ts (drawPlayers/drawHpBar) <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-12 -->
-
 ## Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash'…
 
 What: Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash's scalar cooldownMs in CONFIG.skills, keeping any resulting fractional millisecond values unrounded · Why: skills felt sluggish to re-fire in playtesting, and validateConfig's no-decimals rule only applies to HP and damage, not cooldowns · Where: src/config.ts <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-2 -->
@@ -221,3 +217,11 @@ What: Shot skill is bound solely to key C (KeyC), removing all prior AltLeft/Alt
 ## The enemy HP bar renders as a continuous fill (hp/maxHp fraction) rather than the HUD's 1…
 
 What: The enemy HP bar renders as a continuous fill (hp/maxHp fraction) rather than the HUD's 10-segmented block style · Why: the rival's on-screen body is small, so 10 discrete segments would be illegible at that scale · Where: src/renderer.ts hpBarLayout/drawHpBar. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-9 -->
+
+## The background ability-icon SVG is hidden only while a tile is in the `.cooling` state (`…
+
+What: The background ability-icon SVG is hidden only while a tile is in the `.cooling` state (`.ability.cooling .ability-icon svg { visibility: hidden }`), and remains visible in `ready`/`active` states · Why: three overlapping layers (icon, conic sweep, countdown number) were blurring together during cooldown, hurting readability; the icon is still needed in ready/active to identify the ability, so it's suppressed only during cooling · Where: src/style.css <!-- id: 6a206f76-670d-45a4-8eae-06f6a6758e48-0 -->
+
+## La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer)
+
+What: La barra de HP flotante sólo se dibuja para rivales, nunca para el jugador local (viewer) · Why: el viewer ya tiene la barra de 10 bloques del HUD; una barra flotante propia sería redundante · Where: src/renderer.ts (drawPlayers/drawHpBar) <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-12 -->

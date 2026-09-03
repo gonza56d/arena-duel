@@ -1,6 +1,6 @@
 # convention
 
-A rule the codebase follows — naming, patterns, and where things live.
+A rule, pattern or convention this project follows (naming, formats, repeated approach).
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -182,14 +182,6 @@ What: Ability cooldown is visualized with a CSS conic-gradient sweep on each `.a
 
 What: chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts on it must be resolved by keeping both sides' entries concatenated, never by picking one side · Why: — · Where: chiron-memory/decisions.md · Learned: applied when merging origin/master — kept master's fog-readability entry followed by this branch's two HUD entries. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->
 
-## La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) conti…
-
-What: La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) continue` que ya gatea otros overlays por jugador dentro del loop `visible` · Why: el cuerpo ya se pinta gris al morir; no tiene sentido superponer una barra de HP · Where: src/renderer.ts <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-13 -->
-
-## Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la lí…
-
-What: Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la línea de controles en index.html, y el comentario de cabecera de src/input.ts · Why: son cuatro fuentes independientes que muestran/aplican el binding; olvidar una deja el HUD o la documentación desincronizados · Where: src/input.ts, index.html <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-7 -->
-
 ## README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds,…
 
 What: README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds, movement speed, dash distance), and config.test.ts has tests explicitly checking CONFIG matches those documented numbers · Why: keeps docs and tuning numbers in sync so the "matches design-doc numbers" tests stay meaningful · Where: README.md, src/config.ts, src/config.test.ts · Learned: any CONFIG numeric change should be mirrored in README's tuning tables. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-4 -->
@@ -229,3 +221,19 @@ What: The floating HP bar's fill/empty colors reuse the HUD bar's existing palet
 ## Small rendered elements enforce a minimum on-screen pixel floor for legibility at small v…
 
 What: Small rendered elements enforce a minimum on-screen pixel floor for legibility at small viewport scales (e.g. HP bar height min 3px) · Why: follows the same pattern already used for bullet sizing so tiny geometry doesn't disappear at low zoom · Where: src/renderer.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-5 -->
+
+## `.ability-countdown` (the cooldown number) is rendered as a solid dark pill (`rgba(5,6,10…
+
+What: `.ability-countdown` (the cooldown number) is rendered as a solid dark pill (`rgba(5,6,10,0.85)` background) centered over the tile via `inset:0; margin:auto` sized to `max-content`, and is only shown while `.cooling` (`.ability:not(.cooling) .ability-countdown { display:none }`) · Why: guarantees high contrast against the conic-gradient sweep at any `--cd` value, and avoids showing an empty pill when the ability is ready, without any hud.ts DOM changes · Where: src/style.css <!-- id: 6a206f76-670d-45a4-8eae-06f6a6758e48-1 -->
+
+## Design decisions, conventions, architecture notes, and gotchas discovered while implement…
+
+What: Design decisions, conventions, architecture notes, and gotchas discovered while implementing a work order are recorded in project-local files under `chiron-memory/` (conventions.md, decisions.md, architectures.md, gotchas.md, contradictions.md, configs.md) · Why: keeps a durable, in-repo record of design rationale for future sessions · Where: chiron-memory/ <!-- id: 6a206f76-670d-45a4-8eae-06f6a6758e48-5 -->
+
+## La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) conti…
+
+What: La barra de HP flotante se omite para rivales muertos, reusando el mismo `if (dead) continue` que ya gatea otros overlays por jugador dentro del loop `visible` · Why: el cuerpo ya se pinta gris al morir; no tiene sentido superponer una barra de HP · Where: src/renderer.ts <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-13 -->
+
+## Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la lí…
+
+What: Cambiar la tecla de un skill requiere actualizar en conjunto SKILL_KEYS, KEY_HINTS, la línea de controles en index.html, y el comentario de cabecera de src/input.ts · Why: son cuatro fuentes independientes que muestran/aplican el binding; olvidar una deja el HUD o la documentación desincronizados · Where: src/input.ts, index.html <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-7 -->

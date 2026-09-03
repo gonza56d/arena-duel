@@ -1,6 +1,6 @@
 # architecture
 
-How the system is put together — layers, boundaries, and how data flows.
+A structural/design choice: layers, module boundaries, where things live.
 
 ## `Match` (src/sim/match.ts) owns a game's loadouts; a `World` is one round and always carries a loadout per player
 
@@ -181,3 +181,7 @@ What: Per-match resolved skill cooldowns come from resolve* functions in src/sim
 ## HP bar geometry is computed by a pure, exported `hpBarLayout(body, maxHp, viewport)` help…
 
 What: HP bar geometry is computed by a pure, exported `hpBarLayout(body, maxHp, viewport)` helper (position/scale via ArenaViewport, HP fraction clamped to [0,1]) separate from the canvas-drawing code · Why: lets bar layout be unit-tested without a canvas · Where: src/renderer.ts, src/renderer.test.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-6 -->
+
+## Ability cooldown presentation is split so hud.ts owns the tile DOM, the `--cd` custom pro…
+
+What: Ability cooldown presentation is split so hud.ts owns the tile DOM, the `--cd` custom property, and `ready`/`cooling`/`active` state classes, while all cooldown visual styling (glyph, conic sweep, countdown pill) lives in src/style.css · Why: keeps this kind of readability/visual tweak achievable as a CSS-only, presentation-only change with zero risk to cooldown timing or state logic · Where: src/hud.ts, src/style.css <!-- id: 6a206f76-670d-45a4-8eae-06f6a6758e48-2 -->
