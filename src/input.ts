@@ -4,7 +4,15 @@
  *  - Movement: WASD / arrows, held keys → raw direction vector (the simulation
  *    normalises it). Opposite keys cancel out.
  *  - Aim: the pointer's position converted to arena units through the shared
- *    viewport (tracked on the whole window so aiming just off the canvas works).
+ *    viewport. Tracked on the whole window: during a fight the mouse belongs to
+ *    the game wherever it is on the page, so an aim or click that overshoots the
+ *    arena edge still counts (the direction it resolves to is unclamped — it
+ *    points where the cursor is). The aim is dropped only when the pointer
+ *    leaves the page, and restored by the next move back in.
+ *  - Ownership: `capturesMouse()` gates every mouse handler. While it is true
+ *    gameplay owns the mouse (clicks fire skills, the context menu is
+ *    suppressed); while false the handlers do nothing at all, so a menu or
+ *    other UI can use the mouse natively without gameplay stealing its clicks.
  *  - Skills: edge-triggered. A key/button press queues a one-shot trigger that
  *    the game loop consumes on its next tick; holding a key does not repeat.
  *      Dash  left Shift          Shot   Alt or ⌘ (Meta)
@@ -55,17 +63,34 @@ export const KEY_HINTS: Record<"dash" | "slash" | "shot" | "shield" | "bash", st
   bash: "E",
 };
 
+export interface InputOptions {
+  /**
+   * True while gameplay owns the mouse (a fight is on). When false, mouse
+   * events are left to the page untouched. Defaults to always-on.
+   */
+  capturesMouse?: () => boolean;
+}
+
 export interface PlayerInputSource {
   /** Current movement intent; zero when no movement key is held. */
   direction(): Vec2;
-  /** Pointer position in arena units, or null before the pointer was seen. */
+  /**
+   * Pointer position in arena units (may lie outside the arena square), or
+   * null before the pointer was seen / while it is outside the page.
+   */
   aim(): Vec2 | null;
   /** Skills pressed since the last call. Clears them. */
   consumeTriggers(): SkillTriggers;
   stop(): void;
 }
 
-export function createInput(target: Window, canvas: HTMLCanvasElement, viewport: ArenaViewport): PlayerInputSource {
+export function createInput(
+  target: Window,
+  canvas: HTMLCanvasElement,
+  viewport: ArenaViewport,
+  opts: InputOptions = {},
+): PlayerInputSource {
+  const capturesMouse = opts.capturesMouse ?? (() => true);
   const held = new Set<string>();
   let pending: SkillTriggers = {};
   let pointer: Vec2 | null = null;
@@ -86,25 +111,38 @@ export function createInput(target: Window, canvas: HTMLCanvasElement, viewport:
   };
   const onBlur = (): void => held.clear();
 
-  const onMouseMove = (e: MouseEvent): void => {
+  /** Arena point under a mouse event, relative to the canvas wherever the event landed. */
+  const pointAt = (e: MouseEvent): Vec2 => {
     const rect = canvas.getBoundingClientRect();
-    pointer = viewport.screenToArena(e.clientX - rect.left, e.clientY - rect.top);
+    return viewport.screenToArena(e.clientX - rect.left, e.clientY - rect.top);
+  };
+  const onMouseMove = (e: MouseEvent): void => {
+    if (!capturesMouse()) return;
+    pointer = pointAt(e);
   };
   const onMouseDown = (e: MouseEvent): void => {
+    if (!capturesMouse()) return;
     const skill = MOUSE_BUTTONS[e.button];
     if (!skill) return;
-    onMouseMove(e); // make sure the aim matches where the click landed
+    pointer = pointAt(e); // make sure the aim matches where the click landed
     pending[skill] = true;
-    e.preventDefault();
+    e.preventDefault(); // no text selection / focus change on the UI around the arena
   };
-  const onContextMenu = (e: Event): void => e.preventDefault();
+  const onContextMenu = (e: Event): void => {
+    if (capturesMouse()) e.preventDefault();
+  };
+  /** `mouseout` with no `relatedTarget` means the pointer left the page itself. */
+  const onMouseOut = (e: MouseEvent): void => {
+    if (e.relatedTarget === null) pointer = null;
+  };
 
   target.addEventListener("keydown", onKeyDown);
   target.addEventListener("keyup", onKeyUp);
   target.addEventListener("blur", onBlur);
   target.addEventListener("mousemove", onMouseMove);
-  canvas.addEventListener("mousedown", onMouseDown);
-  canvas.addEventListener("contextmenu", onContextMenu);
+  target.addEventListener("mousedown", onMouseDown);
+  target.addEventListener("contextmenu", onContextMenu);
+  target.addEventListener("mouseout", onMouseOut);
 
   return {
     direction(): Vec2 {
@@ -130,8 +168,9 @@ export function createInput(target: Window, canvas: HTMLCanvasElement, viewport:
       target.removeEventListener("keyup", onKeyUp);
       target.removeEventListener("blur", onBlur);
       target.removeEventListener("mousemove", onMouseMove);
-      canvas.removeEventListener("mousedown", onMouseDown);
-      canvas.removeEventListener("contextmenu", onContextMenu);
+      target.removeEventListener("mousedown", onMouseDown);
+      target.removeEventListener("contextmenu", onContextMenu);
+      target.removeEventListener("mouseout", onMouseOut);
       held.clear();
       pending = {};
     },

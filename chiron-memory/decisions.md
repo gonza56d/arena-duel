@@ -142,9 +142,9 @@ What: Bash's 50% slow refreshes its 1s duration when reapplied rather than stack
 
 What: Shield blocks 100% of damage from every skill including Bash, and a blocked Bash applies no slow either · Why: "blocks 100% of damage" was read literally even though README flavour text only names slashes and shots · Where: src/sim/skills/shield.ts, src/sim/skills/combat.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-2 -->
 
-## Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the ca…
+## Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the native context menu on the whole page while gameplay owns the mouse
 
-What: Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the canvas's native context menu on right-click · Why: without suppression, right-clicking to swing would pop the browser context menu instead of triggering the skill · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-20 -->
+What: Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the native `contextmenu` event on the whole window (not just the canvas) whenever `capturesMouse()` is true · Why: without suppression, right-clicking to swing would pop the browser context menu instead of triggering the skill — and since the mouse is captured page-wide during a fight, a right-click that overshoots onto the sidebar must be silenced too · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-20 -->
 
 ## Bash is bound to key `E`, not Ctrl
 
@@ -169,6 +169,10 @@ What: docker-compose publishes MongoDB's port 27017 to the host · Why: lets `ma
 ## `make test` runs the client vitest suite and `go test ./...` for the backend, running bot…
 
 What: `make test` runs the client vitest suite and `go test ./...` for the backend, running both even if the first fails, and exits non-zero if either failed · Why: a single command should surface both suites' failures instead of stopping at the first · Where: Makefile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-4 -->
+
+## During a match gameplay owns the mouse on the whole page: clicks and aim anywhere in the window count as arena input, gated by `Game.inputMode`
+
+What: `createInput` listens for `mousemove`/`mousedown`/`contextmenu` on the *window*, not the canvas, and maps every event through `canvas.getBoundingClientRect()` + `viewport.screenToArena` with no clamping, so a click on the sidebar fires the skill aimed exactly where the cursor is (the arena point may be negative or > 2100; `updateAim` normalises `aim − pos` and is happy with that). Every mouse handler is gated by `opts.capturesMouse()`; `game.ts` supplies `() => inputMode === "gameplay"`, where `Game.inputMode: "gameplay" | "ui"` defaults to `"gameplay"` for the whole match (including the between-rounds pause and `matchOver`) and nothing sets `"ui"` yet — a future menu flips it to get native clicks/context menu back. The aim is dropped (`aim()` → null, sim keeps the last `aimDir`) only on `mouseout` with `relatedTarget === null`, i.e. the pointer left the page; the next `mousemove` restores it. `resetTransient` also consumes pending triggers so a click made during the intermission cannot fire on the first tick of the next round · Why: players overshoot the arena edge while aiming; inputs dropped at the canvas border made combat feel inconsistent. The gate is a mode on the game (not `match.phase`) because the pause between rounds is still "the fight" from the player's point of view — a right-click there must not pop a menu · Where: src/input.ts (`InputOptions.capturesMouse`, `onMouseOut`), src/game.ts (`InputMode`, `Game.inputMode`, `resetTransient`), src/input.test.ts · Learned: input.ts is unit-tested with Node's own `EventTarget`/`Event` (properties like `button`/`clientX`/`relatedTarget` assigned onto plain cancelable events) plus a fake `getBoundingClientRect` and a real `ArenaViewport` — no jsdom needed; the gate is mouse-only, keyboard handlers ignore it.
 
 ## Milestone-1 mobility bump: movement speed and every dash-distance level scaled by exactly ×1.25 (37.5 units/100 ms; dash `[125, 135, 145, 156.25]`)
 
