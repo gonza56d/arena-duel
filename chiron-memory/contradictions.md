@@ -1,6 +1,6 @@
 # contradiction
 
-Something that contradicts or supersedes a previous decision/approach.
+A memory that clashes with newer reality — flagged to be resolved.
 
 ## The README claims '26 possible points' but the actual per-skill level tables sum to 38 to…
 

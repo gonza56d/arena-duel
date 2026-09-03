@@ -1,6 +1,6 @@
 # decision
 
-A technical decision that was made and WHY (which alternatives were discarded).
+A choice made and the reasoning behind it — the path taken over the alternatives.
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 

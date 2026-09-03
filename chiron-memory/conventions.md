@@ -1,6 +1,6 @@
 # convention
 
-A rule, pattern or convention this project follows (naming, formats, repeated approach).
+A rule the codebase follows — naming, patterns, and where things live.
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -177,6 +177,10 @@ What: Ability cooldown is visualized with a CSS conic-gradient sweep on each `.a
 ## chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts…
 
 What: chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts on it must be resolved by keeping both sides' entries concatenated, never by picking one side · Why: — · Where: chiron-memory/decisions.md · Learned: applied when merging origin/master — kept master's fog-readability entry followed by this branch's two HUD entries. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->
+
+## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
+
+What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->
 
 ## README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds,…
 

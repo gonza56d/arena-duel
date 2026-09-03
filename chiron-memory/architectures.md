@@ -1,6 +1,6 @@
 # architecture
 
-A structural/design choice: layers, module boundaries, where things live.
+How the system is put together — layers, boundaries, and how data flows.
 
 ## `Match` (src/sim/match.ts) owns a game's loadouts; a `World` is one round and always carries a loadout per player
 
