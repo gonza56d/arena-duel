@@ -1,6 +1,6 @@
 # convention
 
-A rule the codebase follows — naming, patterns, and where things live.
+A rule, pattern or convention this project follows (naming, formats, repeated approach).
 
 ## `validateLoadout` returns `{ok, errors[]}` with every violation; `assertValidLoadout` throws the same list. `createWorld`/`generateLoadout` assert, UIs should read the list
 
@@ -37,6 +37,10 @@ What: `src/input.test.ts` drives `createInput` with a plain `new EventTarget()` 
 ## The player HUD is `src/hud.ts` (`createHud(root)` → `{ setLoadout, update }`), driven from main.ts once per match and once per frame; the old right-panel `#hud` HP line is gone
 
 What: `createHud` builds the DOM once (10 `.hp-block`s, `#hp-label`, `#hp-status`, five `.ability` tiles with inline-SVG glyphs, a conic-gradient `.ability-sweep` driven by the `--cd` custom property = fraction of cooldown remaining, and a `s.s` countdown). `renderMatch` calls `setLoadout(m.loadouts[0])` so each skill's full cooldown comes from `resolve*` for the local build; `updateHud` calls `update(me)` every frame from `PlayerState` (`hp`, `healTimerMs`, `slow`, `cooldowns[id]`, in-progress skill state → `.ready` / `.cooling` / `.active`). The heal countdown / SLOWED / DEAD readouts moved from the right panel into `#hp-status` beside the label (`statusText`); score and match outcome stay in the top bar; the sidebar build list keeps its own cooldown text. Pure rules (`filledBlocks`, `cooldownFraction`, `skillCooldownMs`, `statusText`) are unit-tested without a DOM; block count and colours are presentation constants in hud.ts/style.css, not config. · Why: keeps main.ts to wiring and lets the display rules be tested with vitest in node (no jsdom), consistent with the renderer-only-constants rule. · Where: src/hud.ts, src/hud.test.ts, src/main.ts, src/style.css. · Learned: this supersedes the earlier note that the HP/heal line is rendered in `src/main.ts`; `SKILL_NAMES` now lives in hud.ts and the sidebar imports it.
+
+## A rival's floating HP bar is drawn inside `drawPlayers`' `visible` loop, so it has no fog geometry of its own
+
+What: `renderer.ts` draws a bar above every *visible* rival — not the viewer (it reads its own HP on the HUD) and not a dead body — via the pure `hpBarLayout(body, maxHp, viewport)`: width 4 r, height 0.5 r (min 3 px), bottom edge 0.7 r above the circle, all converted through `ArenaViewport`; fill = `hp / maxHp` clamped to [0, 1]; colours reuse the HUD reds (`#e2322a` filled / `#4a1512` empty) · Why: the work order asked for a bar that "replicates the enemy body's fog calculations" — living in the same `playerInView` filter as the body makes bar and body structurally unable to disagree, with zero extra `canSee` calls; a continuous fill was chosen over 10 blocks because the body is ~10 px wide on a typical canvas · Where: src/renderer.ts (`HP_BAR`, `hpBarLayout`, `drawHpBar`), src/renderer.test.ts · Learned: renderer.ts imports cleanly in vitest/node as long as everything DOM-bound stays inside `createRenderer`, so pure layout helpers can be exported and tested.
 
 ## UI HTML (top/side/bottom bars) is placed around the canvas using a CSS grid with the canv…
 
@@ -178,14 +182,6 @@ What: Ability cooldown is visualized with a CSS conic-gradient sweep on each `.a
 
 What: chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts on it must be resolved by keeping both sides' entries concatenated, never by picking one side · Why: — · Where: chiron-memory/decisions.md · Learned: applied when merging origin/master — kept master's fog-readability entry followed by this branch's two HUD entries. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->
 
-## A rival's floating HP bar is drawn inside `drawPlayers`' `visible` loop, so it has no fog geometry of its own
-
-What: `renderer.ts` draws a bar above every *visible* rival — not the viewer (it reads its own HP on the HUD) and not a dead body — via the pure `hpBarLayout(body, maxHp, viewport)`: width 4 r, height 0.5 r (min 3 px), bottom edge 0.7 r above the circle, all converted through `ArenaViewport`; fill = `hp / maxHp` clamped to [0, 1]; colours reuse the HUD reds (`#e2322a` filled / `#4a1512` empty) · Why: the work order asked for a bar that "replicates the enemy body's fog calculations" — living in the same `playerInView` filter as the body makes bar and body structurally unable to disagree, with zero extra `canSee` calls; a continuous fill was chosen over 10 blocks because the body is ~10 px wide on a typical canvas · Where: src/renderer.ts (`HP_BAR`, `hpBarLayout`, `drawHpBar`), src/renderer.test.ts · Learned: renderer.ts imports cleanly in vitest/node as long as everything DOM-bound stays inside `createRenderer`, so pure layout helpers can be exported and tested.
-
-## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
-
-What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->
-
 ## README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds,…
 
 What: README.md mirrors the design-doc tuning figures from src/config.ts (cooldowns in seconds, movement speed, dash distance), and config.test.ts has tests explicitly checking CONFIG matches those documented numbers · Why: keeps docs and tuning numbers in sync so the "matches design-doc numbers" tests stay meaningful · Where: README.md, src/config.ts, src/config.test.ts · Learned: any CONFIG numeric change should be mirrored in README's tuning tables. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-4 -->
@@ -197,3 +193,31 @@ What: config.test.ts includes guard tests asserting a tuned value is an exact ra
 ## Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values fr…
 
 What: Skill-specific test files (dash/slash/shot/shield/bash *.test.ts) read cooldown values from CONFIG.skills or inject their own test-local cooldowns instead of hardcoding exact numbers, unlike stats.test.ts and loadout.test.ts which hardcode resolved values · Why: — · Where: src/sim/skills/*.test.ts · Learned: a cooldown-tuning pass only needs to ripple into stats.test.ts and loadout.test.ts, not the per-skill test files, since those already derive from CONFIG. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-7 -->
+
+## The floating HP bar is skipped for dead rivals, via the same `if (dead) continue` guard a…
+
+What: The floating HP bar is skipped for dead rivals, via the same `if (dead) continue` guard already used to skip other per-player render effects · Why: — · Where: src/renderer.ts drawPlayers. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-10 -->
+
+## hpBarLayout's dimensions are derived proportionally from the body's radius (width ≈ 4×rad…
+
+What: hpBarLayout's dimensions are derived proportionally from the body's radius (width ≈ 4×radius, height ≈ 0.5×radius clamped to a 3px floor, vertical offset ≈ 0.7×radius above the body) instead of fixed pixel constants · Why: keeps the bar's proportions consistent with player size across different zoom/viewport scales · Where: src/renderer.ts hpBarLayout. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-11 -->
+
+## A rival's floating HP bar is drawn inside drawPlayers' same `visible` (in-view/fog) loop…
+
+What: A rival's floating HP bar is drawn inside drawPlayers' same `visible` (in-view/fog) loop as the rival's body, with no independent fog-of-war geometry of its own · Why: keeps a single source of truth for visibility so the bar can never desync from the body it belongs to · Where: src/renderer.ts (drawPlayers / drawHpBar). <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-2 -->
+
+## The floating HP bar is drawn only above rivals, never above the local viewer (who already…
+
+What: The floating HP bar is drawn only above rivals, never above the local viewer (who already has the HUD's 10-block bar) · Why: — · Where: src/renderer.ts drawPlayers, viewerId check. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-3 -->
+
+## The floating HP bar's fill/empty colors reuse the HUD bar's existing palette (#e2322a fil…
+
+What: The floating HP bar's fill/empty colors reuse the HUD bar's existing palette (#e2322a filled / #4a1512 empty) rather than introducing new colors · Why: — · Where: src/renderer.ts, src/hud.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-4 -->
+
+## Small rendered elements enforce a minimum on-screen pixel floor for legibility at small v…
+
+What: Small rendered elements enforce a minimum on-screen pixel floor for legibility at small viewport scales (e.g. HP bar height min 3px) · Why: follows the same pattern already used for bullet sizing so tiny geometry doesn't disappear at low zoom · Where: src/renderer.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-5 -->
+
+## src/config.test.ts includes guard tests asserting a retuned stat equals an exact multipli…
+
+What: src/config.test.ts includes guard tests asserting a retuned stat equals an exact multiplier of its pre-change value (e.g. a ×0.5 guard added for the cooldown halving, mirroring an existing ×1.25 mobility guard) · Why: catches an incomplete or miscalculated retune at the config source rather than only checking absolute numbers · Where: src/config.test.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-3 -->

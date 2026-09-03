@@ -1,6 +1,6 @@
 # config
 
-Setup and configuration — env vars, flags, how to run the project.
+Configuration knowledge: env vars, dependencies, build/deploy, where data lives.
 
 ## Root `Makefile` is the developer entry point: `make run` / `make test` / `make up`; `make help` (default) lists every target
 

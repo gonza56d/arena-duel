@@ -1,6 +1,6 @@
 # decision
 
-A choice made and the reasoning behind it — the path taken over the alternatives.
+A technical decision that was made and WHY (which alternatives were discarded).
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -170,7 +170,7 @@ What: Shield blocks 100% of damage from every skill including Bash, and a blocke
 
 What: Slash's secondary swing is bound to the right mouse button, so input.ts suppresses the native `contextmenu` event on the whole window (not just the canvas) whenever `capturesMouse()` is true · Why: without suppression, right-clicking to swing would pop the browser context menu instead of triggering the skill — and since the mouse is captured page-wide during a fight, a right-click that overshoots onto the sidebar must be silenced too · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-20 -->
 
-## Bash is bound to key `E`, not Ctrl
+## Bash is bound to key `E` and Shot to key `C`, never Ctrl / ⌘ / Alt
 
 What: Bash is bound to key `E` and Shot to key `C`, never Ctrl / ⌘ / Alt · Why: Ctrl+W/S/D and ⌘+W fire browser shortcuts (close tab!) mid-fight and Alt focuses the menu bar in some browsers · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
 
@@ -209,3 +209,11 @@ What: Chose to add an extra HUD grid row below the arena rather than folding foo
 ## Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash'…
 
 What: Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash's scalar cooldownMs in CONFIG.skills, keeping any resulting fractional millisecond values unrounded · Why: skills felt sluggish to re-fire in playtesting, and validateConfig's no-decimals rule only applies to HP and damage, not cooldowns · Where: src/config.ts <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-2 -->
+
+## Shot skill is bound solely to key C (KeyC), removing all prior AltLeft/AltRight/MetaLeft/…
+
+What: Shot skill is bound solely to key C (KeyC), removing all prior AltLeft/AltRight/MetaLeft/MetaRight bindings · Why: Cmd/Ctrl+W fires the browser's close-tab shortcut mid-fight, and Alt steals focus to the OS/browser menu bar — same hazard class that earlier moved Bash off Ctrl onto E · Where: src/input.ts (SKILL_KEYS, KEY_HINTS), index.html controls line. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-0 -->
+
+## The enemy HP bar renders as a continuous fill (hp/maxHp fraction) rather than the HUD's 1…
+
+What: The enemy HP bar renders as a continuous fill (hp/maxHp fraction) rather than the HUD's 10-segmented block style · Why: the rival's on-screen body is small, so 10 discrete segments would be illegible at that scale · Where: src/renderer.ts hpBarLayout/drawHpBar. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-9 -->

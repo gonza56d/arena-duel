@@ -1,6 +1,6 @@
 # gotcha
 
-A non-obvious pitfall or trap, learned the hard way.
+Something non-obvious that failed or must be kept in mind to avoid repeating (bugs, surprises, lessons).
 
 ## MTV push-out leaves shapes overlapping by ~1e-14 unless a contact skin is added
 
@@ -33,6 +33,10 @@ What: `PlayerInputSource.consumeTriggers()` is called only from `game.ts`'s `sim
 ## `arenaDebug.step(0)` runs no frame, so the HUD DOM is empty until the first real tick or rAF
 
 What: `Game.advance` is only reached inside `step`'s loop while `left > 0`, so `step(0)` neither ticks nor draws and `#hp-label` reads `""` right after a page load in a tab whose rAF loop is frozen. · Why: `step` chunks `ms` into `for (left = ms; left > 0; …)`. · Learned: in browser smoke tests call `step(10)` (one tick) before asserting HUD text; forcing `#app` to `800px × 600px` inline is a reliable way to exercise the minimum-viewport layout, and the ResizeObserver did fire in the automation tab this time (canvas relaid out to 376 px).
+
+## In a hidden Chrome tab `requestAnimationFrame` never fires, so the game loop and any `await nextFrame()` stall
+
+What: when driving the app through claude-in-chrome the tab is often `document.hidden`; the RAF-driven `Game` loop stops, the canvas is not redrawn and a script awaiting a frame hangs until the CDP timeout · Why: browsers pause RAF for hidden tabs · Where: src/game.ts (loop), src/main.ts (`arenaDebug`) · Learned: use `arenaDebug.step(CONFIG.sim.tickMs)` as the sync point — it runs `Game.advance`, which ticks *and* draws synchronously — then read pixels with `getImageData` (multiply CSS px by `devicePixelRatio`); `nextRound()` re-rolls the obstacle layout, so find fogged spots by scanning `canSee` instead of hardcoding coordinates.
 
 ## An element's `[hidden]` attribute can be silently overridden if an author CSS rule sets `…
 
@@ -121,7 +125,3 @@ What: `shadowPolygons`'s wedge vertices must be ordered consistently relative to
 ## `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame
 
 What: `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame · Why: — · Where: src/game.ts (arenaDebug), used during browser verification of src/hud.ts · Learned: pass a positive ms value when driving sim state for manual/HUD verification, not 0. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-6 -->
-
-## In a hidden Chrome tab `requestAnimationFrame` never fires, so the game loop and any `await nextFrame()` stall
-
-What: when driving the app through claude-in-chrome the tab is often `document.hidden`; the RAF-driven `Game` loop stops, the canvas is not redrawn and a script awaiting a frame hangs until the CDP timeout · Why: browsers pause RAF for hidden tabs · Where: src/game.ts (loop), src/main.ts (`arenaDebug`) · Learned: use `arenaDebug.step(CONFIG.sim.tickMs)` as the sync point — it runs `Game.advance`, which ticks *and* draws synchronously — then read pixels with `getImageData` (multiply CSS px by `devicePixelRatio`); `nextRound()` re-rolls the obstacle layout, so find fogged spots by scanning `canSee` instead of hardcoding coordinates.

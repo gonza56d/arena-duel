@@ -1,6 +1,6 @@
 # architecture
 
-How the system is put together — layers, boundaries, and how data flows.
+A structural/design choice: layers, module boundaries, where things live.
 
 ## `Match` (src/sim/match.ts) owns a game's loadouts; a `World` is one round and always carries a loadout per player
 
@@ -177,3 +177,7 @@ What: In CONFIG.skills, dash/slash/shot/shield store cooldowns as per-level arra
 ## Per-match resolved skill cooldowns come from resolve* functions in src/sim/skills/stats.t…
 
 What: Per-match resolved skill cooldowns come from resolve* functions in src/sim/skills/stats.ts, which read the base level arrays/scalars in CONFIG.skills based on the player's loadout · Why: — · Where: src/sim/skills/stats.ts, src/config.ts · Learned: src/config.ts is the single source of truth for cooldown tuning numbers; runtime cooldown gating during a match is handled separately in skills/cooldowns.ts. <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-1 -->
+
+## HP bar geometry is computed by a pure, exported `hpBarLayout(body, maxHp, viewport)` help…
+
+What: HP bar geometry is computed by a pure, exported `hpBarLayout(body, maxHp, viewport)` helper (position/scale via ArenaViewport, HP fraction clamped to [0,1]) separate from the canvas-drawing code · Why: lets bar layout be unit-tested without a canvas · Where: src/renderer.ts, src/renderer.test.ts. <!-- id: 2bba23df-6698-4e00-aa80-1b5a41fe7ad4-6 -->
