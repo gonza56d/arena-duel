@@ -85,3 +85,8 @@ What: light-backend has no `.env` file loader in the Go code — it reads env va
 ## The client's backend URL (`VITE_LIGHT_BACKEND_URL`, default http://localhost:8080) is bak…
 
 What: The client's backend URL (`VITE_LIGHT_BACKEND_URL`, default http://localhost:8080) is baked into browser-side JS via Vite env handling, so under docker compose it must still point to a host-facing URL, not an internal compose service name like `http://backend:8080`, because the browser (not the container) makes the request · Why: — · Where: src/config.ts, docker-compose.yml <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-8 -->
+
+## One-shot skill presses are only drained inside `simulate`, so any phase where nothing simulates lets stale presses pile up and fire on the next round's first tick
+
+What: `PlayerInputSource.consumeTriggers()` is called only from `game.ts`'s `simulate()`; while `match.phase` is `roundOver` (the intermission) or `matchOver`, clicks and skill keys accumulate in `pending` and — before this was fixed — were all applied on the first tick of the next round (a Slash swung the moment the round began). `resetTransient()` now calls `input.consumeTriggers()` when a world is swapped in · Why: the input source is edge-triggered and lossless by design (a press between two frames must survive), so nothing ever discards presses on its own; whoever adds a non-simulating phase (menus, countdowns, pause) must decide explicitly whether presses made during it are dropped or carried · Where: src/game.ts (`resetTransient`, `simulate`), src/input.ts (`consumeTriggers`) · Learned: page-wide mouse capture made this much more visible because a click *anywhere* now counts, not just on the canvas.
+

@@ -133,3 +133,8 @@ What: Makefile targets are self-documenting via a `##` comment suffix on each ta
 ## The root `.env` file (used only for docker-compose variable interpolation) is gitignored,…
 
 What: The root `.env` file (used only for docker-compose variable interpolation) is gitignored, matching the existing gitignore pattern for light-backend/.env · Why: — · Where: .gitignore <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-15 -->
+
+## Browser-facing client modules are unit-tested with Node's own `EventTarget`/`Event` fakes, not jsdom
+
+What: `src/input.test.ts` drives `createInput` with a plain `new EventTarget()` cast to `Window`, dispatching `new Event(type, { cancelable: true })` with the fields the handler reads (`button`, `clientX/Y`, `relatedTarget`, `code`, `repeat`) assigned onto it; the canvas is `{ getBoundingClientRect }` cast to `HTMLCanvasElement` and the viewport is a real `ArenaViewport` (`resize(1000, 800)` → 800-px arena letterboxed at x = 100). Assert side effects through the returned API (`aim()`, `consumeTriggers()`, `direction()`) and `event.defaultPrevented` · Why: vitest runs in the node environment here (no jsdom dependency, tests stay ~3 s), and the handlers only need the event fields they read — a full DOM buys nothing. Keeps the "sim is pure, client is thin" split testable on both sides · Where: src/input.test.ts, package.json (no jsdom, `vitest run`) · Learned: `preventDefault()` only flips `defaultPrevented` on a `cancelable` event — construct fakes with `{ cancelable: true }` or the suppression assertions silently pass/fail wrong; `MouseEvent`/`KeyboardEvent` constructors do not exist in node, so cast plain events.
+
