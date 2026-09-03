@@ -34,9 +34,12 @@
         <canvas id="arena" class="arena-canvas"></canvas>
       </main>
 
+      <!-- Player HUD: its own grid row directly below the stage, so it can never
+           cover the arena. Health bar + ability icons are built by src/hud.ts. -->
+      <section class="player-hud" id="player-hud" aria-label="Player status"></section>
+
       <aside class="ui-bar ui-right">
         <h2>Status</h2>
-        <p class="ui-slot" id="hud">HP —</p>
         <p class="ui-slot" id="coords">arena → screen ready</p>
       </aside>
 

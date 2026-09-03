@@ -8,6 +8,10 @@
   --stage-bg: #05060a;
   --bar: 56px; /* top/bottom bar height */
   --side: 200px; /* left/right panel width */
+  --hud: 112px; /* player HUD row height, below the stage */
+  --hp-full: #e2322a; /* health block with HP */
+  --hp-empty: #4a1512; /* depleted health block */
+  --ready: #6fd08c;
 }
 
 * {
@@ -39,10 +43,11 @@ body {
   width: 100vw;
   height: 100vh;
   grid-template-columns: var(--side) 1fr var(--side);
-  grid-template-rows: var(--bar) 1fr var(--bar);
+  grid-template-rows: var(--bar) 1fr var(--hud) var(--bar);
   grid-template-areas:
     "top    top    top"
     "left   stage  right"
+    "left   hud    right"
     "bottom bottom bottom";
 }
 
@@ -89,6 +94,154 @@ body {
   /* Actual pixel size is set by the renderer; keep it from spilling out. */
   max-width: 100%;
   max-height: 100%;
+}
+
+/*
+ * Player HUD — the grid row under the stage. Health blocks on top, the
+ * "x/10 HP" label with the status readout under them, then the ability icons.
+ */
+.player-hud {
+  grid-area: hud;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-top: none;
+  overflow: hidden;
+}
+
+.hud-health {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: min(100%, 360px);
+}
+
+.hp-bar {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  height: 14px;
+}
+
+.hp-block {
+  background: var(--hp-empty);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  transition: background-color 120ms linear;
+}
+.hp-block.filled {
+  background: var(--hp-full);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 0 6px rgba(226, 50, 42, 0.45);
+}
+
+.hp-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.hp-label {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+}
+.hp-status {
+  color: var(--ink-dim);
+}
+.player-hud.dead .hp-label,
+.player-hud.dead .hp-status {
+  color: var(--hp-full);
+}
+
+/* Ability icons: glyph in a tile, a dark sweep that empties as the cooldown
+   elapses (--cd = fraction remaining), the seconds left, and the key below. */
+.hud-abilities {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 60px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--ink-dim);
+}
+
+.ability-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--stage-bg);
+  color: var(--ready);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.ability-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Conic sweep: covers the fraction of the cooldown still to elapse, clockwise
+   from the top, and shrinks to nothing as the skill becomes ready. */
+.ability-sweep {
+  --cd: 0;
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(rgba(5, 6, 10, 0.9) calc(var(--cd) * 360deg), transparent 0);
+  pointer-events: none;
+}
+
+.ability-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink);
+  text-shadow: 0 0 3px #000;
+  pointer-events: none;
+}
+
+.ability.ready .ability-icon {
+  border-color: var(--ready);
+  box-shadow: 0 0 6px rgba(111, 208, 140, 0.35);
+}
+.ability.cooling .ability-icon {
+  /* Glyph stays light so the uncovered wedge of the sweep reads as progress. */
+  color: var(--ink);
+  border-color: var(--panel-border);
+}
+.ability.active .ability-icon {
+  color: #ffe9a8;
+  border-color: #ffe9a8;
+}
+
+.ability-name {
+  color: var(--ink);
+}
+.ability-key {
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink-dim);
+  white-space: nowrap;
 }
 
 .brand {

@@ -9,11 +9,11 @@ import { ARENA_SIZE, type ArenaViewport } from "./arena";
 import { CONFIG, leveledStatIds, validateConfig, type StatId } from "./config";
 import { check } from "./deviceGate";
 import { startGame, type Game } from "./game";
+import { createHud, SKILL_NAMES } from "./hud";
 import { KEY_HINTS } from "./input";
 import { createProfileService } from "./profile";
 import { loadoutSpend, statValue, type Loadout } from "./sim/loadout";
 import type { Match } from "./sim/match";
-import { isDead } from "./sim/player";
 import type { SkillTriggers } from "./sim/skills";
 import type { SkillId } from "./sim/skills/stats";
 import { damagePlayer, type World } from "./sim/world";
@@ -27,7 +27,7 @@ const canvas = document.getElementById("arena") as HTMLCanvasElement;
 
 const scaleInfo = document.getElementById("scale-info");
 const coordsInfo = document.getElementById("coords");
-const hud = document.getElementById("hud");
+const hudRoot = document.getElementById("player-hud");
 const roundInfo = document.getElementById("round-info");
 const scoreInfo = document.getElementById("score-info");
 const matchStatus = document.getElementById("match-status");
@@ -35,6 +35,8 @@ const buildLocal = document.getElementById("build-local");
 const buildRival = document.getElementById("build-rival");
 
 const profile = createProfileService();
+/** Health bar + ability icons in the row under the arena (see hud.ts). */
+const playerHud = hudRoot ? createHud(hudRoot) : null;
 
 let game: Game | null = null;
 /** The match whose builds are currently shown in the sidebar. */
@@ -42,8 +44,7 @@ let shownMatch: Match | null = null;
 /** Cooldown slots of the local build list, rebuilt whenever the sidebar is re-rendered. */
 const skillRows = new Map<SkillId, { li: HTMLElement; cd: HTMLElement }>();
 
-/** Display names for skills and their leveled stats. */
-const SKILL_NAMES: Record<string, string> = { dash: "Dash", slash: "Slash", bash: "Bash", shot: "Shot", shield: "Shield" };
+/** Display names for leveled stats (skill names come from hud.ts). */
 const STAT_NAMES: Record<string, string> = { cooldownMs: "cooldown", areaDeg: "area" };
 
 /**
@@ -60,7 +61,7 @@ function renderBuild(list: HTMLElement, loadout: Loadout, withControls: boolean)
     li.dataset.skill = skill;
     const name = document.createElement("span");
     name.className = "skill-name";
-    name.textContent = SKILL_NAMES[skill] ?? skill;
+    name.textContent = SKILL_NAMES[skill as SkillId] ?? skill;
     const levels = document.createElement("span");
     levels.className = "skill-levels";
     if (ids.length === 0) {
@@ -94,20 +95,15 @@ function renderMatch(m: Match): void {
   if (buildRival) renderBuild(buildRival, m.loadouts[1], false);
   const title = document.getElementById("build-title");
   if (title) title.textContent = `Your build · ${loadoutSpend(m.loadouts[0])}/${CONFIG.build.points} pts`;
+  playerHud?.setLoadout(m.loadouts[0]);
 }
 
+/** Per-frame refresh of the HUD under the arena and the sidebar cooldown slots. */
 function updateHud(world: World): void {
-  if (!hud || !game) return;
+  if (!game) return;
   const me = world.players.find((p) => p.id === game!.localPlayerId);
   if (!me) return;
-  if (isDead(me)) {
-    hud.textContent = `HP ${me.hp}/${CONFIG.player.maxHp} · DEAD`;
-  } else {
-    const healIn =
-      me.hp < CONFIG.player.maxHp ? ` · heal in ${((CONFIG.player.healIntervalMs - me.healTimerMs) / 1000).toFixed(1)}s` : "";
-    const slowed = me.slow ? ` · SLOWED ${(me.slow.remainingMs / 1000).toFixed(1)}s` : "";
-    hud.textContent = `HP ${me.hp}/${CONFIG.player.maxHp}${healIn}${slowed}`;
-  }
+  playerHud?.update(me);
 
   for (const [id, row] of skillRows) {
     const left = me.cooldowns[id];
