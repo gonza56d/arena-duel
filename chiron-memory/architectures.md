@@ -58,10 +58,6 @@ What: Data access goes through a `UserStore` interface with a MongoDB implementa
 
 What: `StatId` (and its runtime twins `leveledStatIds()`/`statLevels()`) is derived from every `Levels` field present in the skill configs, not hardcoded · Why: keeps the stat model data-driven — giving a skill a level table makes it spendable automatically, with no generator/validator changes needed · Where: src/config.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-1 -->
 
-## A match (`src/sim/match.ts`), not the world/round, owns loadouts — `createMatch(seed, bes…
-
-What: A match (`src/sim/match.ts`), not the world/round, owns loadouts — `createMatch(seed, bestOf, config)` rolls the player's and NPC's loadouts once, and `startNextRound()` reuses them unchanged; only creating a new match rerolls · Why: implements the rule that loadouts are per-game, fixed across all rounds, rerolled only on a new game · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-11 -->
-
 ## `Loadout` is a flat "skill.stat" → level map using 1-based levels (level 1 = the enforced…
 
 What: `Loadout` is a flat "skill.stat" → level map using 1-based levels (level 1 = the enforced minimum) · Why: 1-based levels match the backend's reserved `configured_stats` map format, keeping the client representation aligned with the future backend contract · Where: src/sim/loadout.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-6 -->
@@ -69,14 +65,6 @@ What: `Loadout` is a flat "skill.stat" → level map using 1-based levels (level
 ## The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) h…
 
 What: The simulation layer under src/sim/ (rng, geometry, obstacles, player, movement, world) has no DOM dependencies and takes config as an injected parameter · Why: keeps sim logic pure and deterministic so unit tests can override config values (e.g. double speed) without touching production config · Where: src/sim/*.ts, called from src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-1 -->
-
-## A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and l…
-
-What: A dev-only debug handle `window.arenaDebug` (exposing `damage()`, `step(ms, move)`, and live world state) is attached client-side for manual/automated verification of HP, heal, and movement without needing real network play. · Why: — · Where: src/main.ts / src/game.ts. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-10 -->
-
-## Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-align…
-
-What: Obstacles are generated with a seeded mulberry32 RNG producing non-overlapping axis-aligned rectangles, kept clear of an edge margin and player spawn zones, with guaranteed passable gaps (gap ≥ player diameter + margin) · Why: obstacle placement must be random but never trap or block spawn points · Where: src/sim/obstacles.ts, src/sim/rng.ts, generation params in CONFIG.arena. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-9 -->
 
 ## PlayerInput was extended with `aim` (an arena-space point) and `skills` (one-shot per-tic…
 
@@ -122,10 +110,6 @@ What: A round does not advance the instant a player dies — game.ts freezes on 
 
 What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsky line-rect clipping) plus vision.ts canSee(from, target, obstacles), which samples the target's silhouette (center ± radius edges), not just the center point. · Why: sampling only the center line would flicker/misjudge visibility when a circle is partially exposed at an obstacle's corner; silhouette sampling makes an actor fully behind cover reliably hidden. · Where: src/sim/geometry.ts, src/sim/vision.ts; consumed by renderer.draw(world, fx, viewerId). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-3 -->
 
-## Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus…
-
-What: Fog-of-war visibility (`canSee` in vision.ts) samples a target's silhouette — center plus left/right edge points at its radius — against obstacles via `segmentIntersectsRect` (Liang–Barsky), rather than testing only the center-to-center line. · Why: a pure center-line test flickers a rival visible/invisible right at an obstacle corner even though most of their body is still hidden. · Where: src/sim/vision.ts, src/sim/geometry.ts (segmentIntersectsRect) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-4 -->
-
 ## The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from…
 
 What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->
@@ -153,3 +137,7 @@ What: The backend dials and pings MongoDB at startup with a 10-second timeout an
 ## The client has no vite.config file and the Vite dev server defaults to localhost:5173
 
 What: The client has no vite.config file and the Vite dev server defaults to localhost:5173 · Why: — · Where: repo root <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-9 -->
+
+## In src/config.ts, character movement speed is a single scalar (player.moveSpeedUnitsPer10…
+
+What: In src/config.ts, character movement speed is a single scalar (player.moveSpeedUnitsPer100ms), while dash distance is a 4-level array (skills.dash.distance, typed as Levels) resolved per-level through the Loadout system. · Why: The two 'stat level' concepts differ — speed has no level table to scale per-level, only one base value read by every player and the NPC via moveSpeedUnitsPerMs(). · Where: src/config.ts; src/sim/loadout.ts. · Learned: A work order asking to change a stat 'at every level' may only require touching one scalar for speed, but the full array for dash distance — check the type before assuming both are level tables. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-0 -->

@@ -30,6 +30,10 @@ What: every public target line ends in `## one-line description`; `make help` is
 
 What: root `Dockerfile`: `deps` (node:24-alpine, `npm ci`) → `dev` (copies sources, `CMD npm run dev -- --host 0.0.0.0 --port 5173`, used by compose) and `build` → `prod` (nginx:1.27-alpine serving `dist/`, the default target; `VITE_LIGHT_BACKEND_URL` is a build `ARG` there). `light-backend/Dockerfile`: golang:1.25-alpine build with `CGO_ENABLED=0`, alpine runtime as user `app`, `GIN_MODE=release`, busybox `wget` `HEALTHCHECK` on `/health`. Each context has a `.dockerignore` (root excludes `light-backend/`, `node_modules`, `.env*`; backend excludes `.env`, `bin/`) · Why: compose needs hot reload (dev server + bind mounts) while `docker build .` should still yield a deployable static image; the backend image must never bake a local `.env` · Where: Dockerfile, .dockerignore, light-backend/Dockerfile, light-backend/.dockerignore.
 
+## Browser-facing client modules are unit-tested with Node's own `EventTarget`/`Event` fakes, not jsdom
+
+What: `src/input.test.ts` drives `createInput` with a plain `new EventTarget()` cast to `Window`, dispatching `new Event(type, { cancelable: true })` with the fields the handler reads (`button`, `clientX/Y`, `relatedTarget`, `code`, `repeat`) assigned onto it; the canvas is `{ getBoundingClientRect }` cast to `HTMLCanvasElement` and the viewport is a real `ArenaViewport` (`resize(1000, 800)` → 800-px arena letterboxed at x = 100). Assert side effects through the returned API (`aim()`, `consumeTriggers()`, `direction()`) and `event.defaultPrevented` · Why: vitest runs in the node environment here (no jsdom dependency, tests stay ~3 s), and the handlers only need the event fields they read — a full DOM buys nothing. Keeps the "sim is pure, client is thin" split testable on both sides · Where: src/input.test.ts, package.json (no jsdom, `vitest run`) · Learned: `preventDefault()` only flips `defaultPrevented` on a `cancelable` event — construct fakes with `{ cancelable: true }` or the suppression assertions silently pass/fail wrong; `MouseEvent`/`KeyboardEvent` constructors do not exist in node, so cast plain events.
+
 ## UI HTML (top/side/bottom bars) is placed around the canvas using a CSS grid with the canv…
 
 What: UI HTML (top/side/bottom bars) is placed around the canvas using a CSS grid with the canvas confined to a center cell, instead of relying on z-index/absolute-positioning discipline to avoid overlap · Why: makes it structurally impossible for UI to cover the canvas, satisfying the 'UI never overlaps canvas' requirement by layout rather than convention · Where: index.html, src/style.css. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-2 -->
@@ -94,10 +98,6 @@ What: Because createWorld rolls a random per-player Loadout, skill unit tests pi
 
 What: Slash's and Bash's cones use the player centre as the apex, with the skill's "range" stat measured as the sector radius from that centre · Why: README doesn't specify apex/measurement point; centre-to-centre was chosen for consistency with the circle collision model · Where: src/sim/skills/slash.ts, src/sim/skills/bash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-4 -->
 
-## Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is p…
-
-What: Slash, Shot and Bash lock their aim direction at the moment the triggering key/click is pressed; Shield instead keeps following the live pointer for the whole time it's active · Why: — · Where: src/sim/skills/*.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-5 -->
-
 ## Slash records which targets it has already hit during the current swing, so the per-tick…
 
 What: Slash records which targets it has already hit during the current swing, so the per-tick angular-slice test doesn't re-damage the same enemy on a later tick as the blade continues sweeping · Why: needed because contact is tested every tick rather than once per swing · Where: src/sim/skills/slash.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-22 -->
@@ -134,7 +134,18 @@ What: Makefile targets are self-documenting via a `##` comment suffix on each ta
 
 What: The root `.env` file (used only for docker-compose variable interpolation) is gitignored, matching the existing gitignore pattern for light-backend/.env · Why: — · Where: .gitignore <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-15 -->
 
-## Browser-facing client modules are unit-tested with Node's own `EventTarget`/`Event` fakes, not jsdom
+## README.md documents the same 'design-doc' tuning figures (movement speed, dash distance p…
 
-What: `src/input.test.ts` drives `createInput` with a plain `new EventTarget()` cast to `Window`, dispatching `new Event(type, { cancelable: true })` with the fields the handler reads (`button`, `clientX/Y`, `relatedTarget`, `code`, `repeat`) assigned onto it; the canvas is `{ getBoundingClientRect }` cast to `HTMLCanvasElement` and the viewport is a real `ArenaViewport` (`resize(1000, 800)` → 800-px arena letterboxed at x = 100). Assert side effects through the returned API (`aim()`, `consumeTriggers()`, `direction()`) and `event.defaultPrevented` · Why: vitest runs in the node environment here (no jsdom dependency, tests stay ~3 s), and the handlers only need the event fields they read — a full DOM buys nothing. Keeps the "sim is pure, client is thin" split testable on both sides · Where: src/input.test.ts, package.json (no jsdom, `vitest run`) · Learned: `preventDefault()` only flips `defaultPrevented` on a `cancelable` event — construct fakes with `{ cancelable: true }` or the suppression assertions silently pass/fail wrong; `MouseEvent`/`KeyboardEvent` constructors do not exist in node, so cast plain events.
+What: README.md documents the same 'design-doc' tuning figures (movement speed, dash distance per level) that live in src/config.ts, and config.test.ts has tests explicitly named 'matches the design-doc feel/skill numbers'. · Why: Keeps the README and the tunable source of truth from silently drifting apart. · Where: README.md; src/config.ts; src/config.test.ts. · Learned: Any tuning change to config.ts values documented in the README must update the corresponding README figures too, or the 'matches design-doc numbers' tests become circular/misleading. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-3 -->
 
+## Project decisions (tuning bumps, design choices) are recorded in chiron-memory/decisions.…
+
+What: Project decisions (tuning bumps, design choices) are recorded in chiron-memory/decisions.md using a What/Why/Where/Learned structure, meant to be validated with a `chiron-memory check` CLI. · Why: chiron-memory is this project's own persistent memory system, queried via `chiron memory search` / `memory_canonical` / `memory_search`. · Where: chiron-memory/decisions.md. · Learned: In this environment the `chiron memory` CLI currently has no check/validate subcommand installed (confirmed via `chiron memory --help`), so new entries can only be format-checked manually until that subcommand exists. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-5 -->
+
+## chiron-memory/decisions.md is an append-only running log of independent What/Why/Where/Le…
+
+What: chiron-memory/decisions.md is an append-only running log of independent What/Why/Where/Learned entries, not a set of competing edits. · Why: When a concurrent branch and this branch each appended a different decision and the merge conflicted, the correct resolution was to keep both entries (not choose one), since neither superseded the other. · Where: chiron-memory/decisions.md. · Learned: Merge conflicts in this file should default to keeping both sides' new entries rather than picking a winner. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-7 -->
+
+## A stop-hook flags when a work order's code diff is large relative to how little chiron-me…
+
+What: A stop-hook flags when a work order's code diff is large relative to how little chiron-memory/ changed, prompting a check that any decisions, conventions, or gotchas from the session got recorded there. · Why: Keeps chiron-memory (the project's own persistent memory) from silently falling behind the code as work orders land. · Where: chiron-memory/ (validated via `chiron-memory check` when that CLI subcommand is installed). · Learned: Expect this nudge after any substantive change and treat it as a prompt to record real findings, not filler, into the type-appropriate chiron-memory file. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-8 -->
