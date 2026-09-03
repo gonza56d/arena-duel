@@ -210,15 +210,25 @@ body {
   pointer-events: none;
 }
 
+/* A solid pill hugging the digits (shrink-wrapped by max-content, centred by
+   inset:0 + margin:auto) keeps them legible over any part of the sweep,
+   whatever the conic boundary is doing underneath (start / middle / end).
+   Only shown while cooling, where the label carries the seconds left. */
 .ability-countdown {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  margin: auto;
+  width: max-content;
+  height: max-content;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(5, 6, 10, 0.85);
   font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ink);
-  text-shadow: 0 0 3px #000;
   pointer-events: none;
+}
+.ability:not(.cooling) .ability-countdown {
+  display: none;
 }
 
 .ability.ready .ability-icon {
@@ -226,9 +236,11 @@ body {
   box-shadow: 0 0 6px rgba(111, 208, 140, 0.35);
 }
 .ability.cooling .ability-icon {
-  /* Glyph stays light so the uncovered wedge of the sweep reads as progress. */
-  color: var(--ink);
   border-color: var(--panel-border);
+}
+/* While cooling, drop the background glyph so only the sweep + number read. */
+.ability.cooling .ability-icon svg {
+  visibility: hidden;
 }
 .ability.active .ability-icon {
   color: #ffe9a8;
