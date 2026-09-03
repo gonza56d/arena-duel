@@ -30,6 +30,10 @@ What: in one session the game loop was frozen (visibilityState hidden), in anoth
 
 What: `PlayerInputSource.consumeTriggers()` is called only from `game.ts`'s `simulate()`; while `match.phase` is `roundOver` (the intermission) or `matchOver`, clicks and skill keys accumulate in `pending` and — before this was fixed — were all applied on the first tick of the next round (a Slash swung the moment the round began). `resetTransient()` now calls `input.consumeTriggers()` when a world is swapped in · Why: the input source is edge-triggered and lossless by design (a press between two frames must survive), so nothing ever discards presses on its own; whoever adds a non-simulating phase (menus, countdowns, pause) must decide explicitly whether presses made during it are dropped or carried · Where: src/game.ts (`resetTransient`, `simulate`), src/input.ts (`consumeTriggers`) · Learned: page-wide mouse capture made this much more visible because a click *anywhere* now counts, not just on the canvas.
 
+## `arenaDebug.step(0)` runs no frame, so the HUD DOM is empty until the first real tick or rAF
+
+What: `Game.advance` is only reached inside `step`'s loop while `left > 0`, so `step(0)` neither ticks nor draws and `#hp-label` reads `""` right after a page load in a tab whose rAF loop is frozen. · Why: `step` chunks `ms` into `for (left = ms; left > 0; …)`. · Learned: in browser smoke tests call `step(10)` (one tick) before asserting HUD text; forcing `#app` to `800px × 600px` inline is a reliable way to exercise the minimum-viewport layout, and the ResizeObserver did fire in the automation tab this time (canvas relaid out to 376 px).
+
 ## An element's `[hidden]` attribute can be silently overridden if an author CSS rule sets `…
 
 What: An element's `[hidden]` attribute can be silently overridden if an author CSS rule sets `display: grid` or `display: flex` on that same selector (e.g. `.app`, `.block-screen`) · Why: author `display` rules win over the UA default `[hidden] { display: none }` rule in CSS specificity/cascade order · Where: src/style.css · Learned: added an explicit `[hidden] { display: none !important; }` guard so the device gate's show/hide toggling is reliable. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-3 -->
@@ -102,6 +106,18 @@ What: validateConfig() in src/config.ts only checks that tuning values are posit
 
 What: In src/sim/skills/dash.test.ts, some geometry tests (enemy 'land behind/at/in front' rules, obstacle clamp) compute rival/wall positions directly from the live CONFIG dash-distance value instead of using the existing withDash({ distance }) test override. · Why: Discovered while bumping dash distance +25% — those tests broke because their hard-coded positions were derived from the old distance, while tests already using withDash({ distance }) stayed insulated from the tuning change. · Where: src/sim/skills/dash.test.ts. · Learned: Future dash-distance tuning changes need positions in these geometry tests re-derived by hand unless they're rewritten to use the withDash({ distance }) override. <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-6 -->
 
-## `arenaDebug.step(0)` runs no frame, so the HUD DOM is empty until the first real tick or rAF
+## When resolving merge conflicts in chiron-memory/*.md, "master" may have re-curated (moved…
 
-What: `Game.advance` is only reached inside `step`'s loop while `left > 0`, so `step(0)` neither ticks nor draws and `#hp-label` reads `""` right after a page load in a tab whose rAF loop is frozen. · Why: `step` chunks `ms` into `for (left = ms; left > 0; …)`. · Learned: in browser smoke tests call `step(10)` (one tick) before asserting HUD text; forcing `#app` to `800px × 600px` inline is a reliable way to exercise the minimum-viewport layout, and the ResizeObserver did fire in the automation tab this time (canvas relaid out to 376 px).
+What: When resolving merge conflicts in chiron-memory/*.md, "master" may have re-curated (moved/reworded) existing entries rather than only adding new ones, so naively keeping both sides can duplicate an entry master already relocated · Why: hit this merging fog-of-war memory updates against a master that had moved an existing decision entry earlier in decisions.md. · Where: chiron-memory/architectures.md, chiron-memory/decisions.md. · Learned: diff each conflicting side against the merge base to tell a move/reword apart from a genuinely new addition before appending. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-6 -->
+
+## `npm run typecheck` reports pre-existing errors unrelated to any given change — e.g
+
+What: `npm run typecheck` reports pre-existing errors unrelated to any given change — e.g. `Property 'env' does not exist on type 'ImportMeta'` in src/main.ts and src/profile.ts · Why: these are not introduced by feature work; treat them as an existing baseline rather than a regression, and diff typecheck output against a clean baseline before assuming your change broke something. · Where: src/main.ts, src/profile.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-7 -->
+
+## `shadowPolygons`'s wedge vertices must be ordered consistently relative to the viewer or…
+
+What: `shadowPolygons`'s wedge vertices must be ordered consistently relative to the viewer or two edge-facing wedges end up wound oppositely, making the point-in-polygon fog test disagree with `hasClearLine` · Why: hit during Phase 1 — both new vision tests (winding-consistency and grid-shading) failed until edge vertex ordering was made viewer-relative. · Where: src/sim/vision.ts, src/sim/vision.test.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-8 -->
+
+## `window.arenaDebug.step(0)` advances zero simulation time and runs no frame — it does not…
+
+What: `window.arenaDebug.step(0)` advances zero simulation time and runs no frame — it does not tick cooldowns, heal, or any state; use `step(n)` with n > 0 (e.g. step(10)) to actually advance the sim in console/browser-driven testing. · Why: discovered while browser-verifying the HUD cooldown sweep — an initial `step(0)` call appeared to do nothing because it genuinely does nothing. · Where: window.arenaDebug (exposed by the game for scripted e2e testing). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-8 -->
