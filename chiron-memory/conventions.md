@@ -118,9 +118,9 @@ What: POST /profile/record always increments games_played on a valid authenticat
 
 What: A round ends the instant a player hits 0 HP (survivor wins that round; simultaneous death is a round draw); the match is won on reaching roundsToWin = floor(N/2)+1, or decided/drawn once all N rounds are played if no majority (even N). · Why: defines best-of-N semantics precisely so scoring code and tests agree on edge cases (early stop vs full N, draws). · Where: src/sim/match.ts roundOutcome/concludeRound. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-2 -->
 
-## Fog of war in the renderer only hides an occluded rival's body, direction indicator, and…
+## `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash…
 
-What: Fog of war in the renderer only hides an occluded rival's body, direction indicator, and dash trail; in-flight projectiles/bullets stay visible even when they pass behind where an obstacle would occlude a player. · Why: — · Where: src/renderer.ts (draw(world, fx, viewerId)) <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
+What: `renderer.draw(world, fx, viewerId)` hides a rival's body, direction/aim indicators, dash trail, slash cone/blade, shield arc and bash cone whenever `canSee` says the body is out of sight (`playerInView`). Effects that are not anchored to a body — a rival's bullets, `bulletStop` impact rings and `hit` flashes — are tested at their own position with `inView(target)`, so a bullet is hidden while inside the fog and appears the moment it flies into sight (the same rule as a body stepping out). Anything owned by the viewer (`ownerId` / `attackerId` / `playerId` equal to the viewer) is drawn regardless. Supersedes the earlier rule that in-flight projectiles stayed visible in the fog · Why: playtest of milestone 1 — a hidden zombie's shots and impacts (bullets emerging from behind a wall, impact rings on the wall's far face) gave away its position; hiding a bullet only while its *shooter* is hidden was rejected because an incoming bullet in the open must stay visible · Where: src/renderer.ts (`viewerOf`, `inView`, `playerInView`, `drawProjectiles`, `drawEffects`) · Learned: with no `viewerId` (headless/debug draw) nothing is fogged; the fog layer and the occlusion rule both derive from the same `vision.ts` geometry so they never disagree. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-5 -->
 
 ## NPC behavior mechanics: movement is a random wander (unit direction re-picked on a random…
 
@@ -154,22 +154,26 @@ What: A stop-hook flags when a work order's code diff is large relative to how l
 
 What: Every enemy-owned effect visual (slash, shield, dash trail, bash cone, bullets, impact rings, hit flashes) is gated by the same in-view check used for the enemy's body, while anything whose owner/attacker/player id equals the local viewer is always drawn unconditionally · Why: one shared rule keeps fog occlusion consistent across all current and future skills, and guarantees a player never loses visibility of their own actions. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-5 -->
 
-## The player HUD lives in its own module `src/hud.ts` exporting `createHud(root)`, which bu…
+## HUD DOM logic lives in src/hud.ts as `createHud(root)`, returning `setLoadout(loadout)` (…
 
-What: The player HUD lives in its own module `src/hud.ts` exporting `createHud(root)`, which builds the DOM once and returns `{setLoadout, update}` — `setLoadout` is called once per match to set cooldown totals from the loadout, `update(player)` is called every frame from world/sim state. · Why: keeps pure presentation math (block counts, cooldown fractions) testable in isolation from DOM wiring and the render loop in `src/main.ts`/`src/game.ts`. · Where: src/hud.ts, wired from src/main.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-0 -->
+What: HUD DOM logic lives in src/hud.ts as `createHud(root)`, returning `setLoadout(loadout)` (called once per match to set cooldown totals) and `update(player)` (called every frame from world state) · Why: — · Where: src/hud.ts, src/main.ts · Learned: mirrors the existing per-frame HUD wiring pattern already used for score/outcome in main.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-2 -->
 
-## The HP health bar's filled-block count is `filledBlocks(hp, maxHp) = clamp(ceil(hp * 10 /…
+## `filledBlocks(hp, maxHp)` rounds up (Math.ceil) rather than down
 
-What: The HP health bar's filled-block count is `filledBlocks(hp, maxHp) = clamp(ceil(hp * 10 / maxHp), 0, 10)` — ceil, not round or floor. · Why: with floor/round an alive player at low HP could show 0 filled blocks, which reads as dead; ceil guarantees at least 1 block while hp > 0. · Where: src/hud.ts (filledBlocks), covered by src/hud.test.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-1 -->
+What: `filledBlocks(hp, maxHp)` rounds up (Math.ceil) rather than down · Why: an alive player with any HP > 0 must never render as 0 filled blocks · Where: src/hud.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-3 -->
 
-## Health bar blocks use strong red `#e2322a` for filled/present HP tenths and dark red `#4a…
+## Ability icon order is fixed across the HUD as dash → slash → shot → shield → bash
 
-What: Health bar blocks use strong red `#e2322a` for filled/present HP tenths and dark red `#4a1512` for depleted tenths. · Why: at-a-glance readability requirement from the work order (players must read HP without looking away from the fight). · Where: src/style.css (.hp-block). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-6 -->
+What: Ability icon order is fixed across the HUD as dash → slash → shot → shield → bash · Why: — · Where: `HUD_SKILLS`/`SKILL_NAMES` in src/hud.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-5 -->
 
-## Each ability tile shows cooldown progress via a conic-gradient sweep overlay driven by a…
+## The old right-panel HP text line was removed in favor of the new below-arena HUD; the Sta…
 
-What: Each ability tile shows cooldown progress via a conic-gradient sweep overlay driven by a `--cd` CSS custom property (0–1 fraction) plus a numeric countdown, with tile states `ready` / `cooling` / `active`. · Why: gives a visual sweep/fill cooldown indicator per the work order's acceptance criteria, computed from `cooldownFraction(leftMs, totalMs)` in src/hud.ts. · Where: src/hud.ts, src/style.css (.ability, --cd). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-7 -->
+What: The old right-panel HP text line was removed in favor of the new below-arena HUD; the Status panel retains only coordinate info · Why: — · Where: index.html, src/main.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-7 -->
 
-## chiron-memory/*.md files (decisions.md, conventions.md, gotchas.md, architectures.md) are…
+## Ability cooldown is visualized with a CSS conic-gradient sweep on each `.ability` tile dr…
 
-What: chiron-memory/*.md files (decisions.md, conventions.md, gotchas.md, architectures.md) are append-only logs of independent entries; git merge conflicts in these files must be resolved by keeping BOTH sides' entries (appending, not choosing one over the other). · Why: the log's own documented rule is that its entries are independent records, not competing edits — matches how this session's master-merge conflict in decisions.md was resolved (fog-readability entry from master kept, followed by the two HUD entries from this branch). · Where: chiron-memory/decisions.md (and sibling files), applied during any git merge touching them. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->
+What: Ability cooldown is visualized with a CSS conic-gradient sweep on each `.ability` tile driven by a `--cd` custom property (fraction of cooldown remaining), a numeric countdown label, and a `ready`/`cooling`/`active` state class · Why: — · Where: src/style.css, src/hud.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-8 -->
+
+## chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts…
+
+What: chiron-memory/decisions.md is an append-only log of independent entries; merge conflicts on it must be resolved by keeping both sides' entries concatenated, never by picking one side · Why: — · Where: chiron-memory/decisions.md · Learned: applied when merging origin/master — kept master's fog-readability entry followed by this branch's two HUD entries. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-9 -->

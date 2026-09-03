@@ -118,6 +118,6 @@ What: `npm run typecheck` reports pre-existing errors unrelated to any given cha
 
 What: `shadowPolygons`'s wedge vertices must be ordered consistently relative to the viewer or two edge-facing wedges end up wound oppositely, making the point-in-polygon fog test disagree with `hasClearLine` · Why: hit during Phase 1 — both new vision tests (winding-consistency and grid-shading) failed until edge vertex ordering was made viewer-relative. · Where: src/sim/vision.ts, src/sim/vision.test.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-8 -->
 
-## `window.arenaDebug.step(0)` advances zero simulation time and runs no frame — it does not…
+## `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame
 
-What: `window.arenaDebug.step(0)` advances zero simulation time and runs no frame — it does not tick cooldowns, heal, or any state; use `step(n)` with n > 0 (e.g. step(10)) to actually advance the sim in console/browser-driven testing. · Why: discovered while browser-verifying the HUD cooldown sweep — an initial `step(0)` call appeared to do nothing because it genuinely does nothing. · Where: window.arenaDebug (exposed by the game for scripted e2e testing). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-8 -->
+What: `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame · Why: — · Where: src/game.ts (arenaDebug), used during browser verification of src/hud.ts · Learned: pass a positive ms value when driving sim state for manual/HUD verification, not 0. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-6 -->

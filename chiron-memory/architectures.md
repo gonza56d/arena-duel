@@ -146,10 +146,6 @@ What: In src/config.ts, character movement speed is a single scalar (player.move
 
 What: Fog of war previously had no visual overlay — it only suppressed drawing of hidden entities/effects, leaving fogged and visible floor identical · Why: playtesting found fog "too subtle to read" mid-fight; a fog-tint layer was added to the renderer. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-0 -->
 
-## `shadowPolygons(viewer, obstacles)` in src/sim/vision.ts returns one consistently-wound w…
-
-What: `shadowPolygons(viewer, obstacles)` in src/sim/vision.ts returns one consistently-wound wedge per obstacle edge facing the viewer, and is the geometric dual of `canSee`/`hasClearLine` · Why: guarantees the drawn fog shape and the occlusion logic can never disagree — tests sample a grid of points and assert a point is shadowed iff `hasClearLine` says it's blocked. · Where: src/sim/vision.ts, src/sim/vision.test.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-1 -->
-
 ## Before this fix, slash, shield, and dash-trail visuals were already gated on the caster's…
 
 What: Before this fix, slash, shield, and dash-trail visuals were already gated on the caster's body visibility — only the bash cone, bullets, bullet-impact rings, and hit flashes leaked through fog · Why: clarifies the pre-existing gap being closed was narrower than "no effects respect fog" — most skill visuals were already correct. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-10 -->
@@ -157,6 +153,10 @@ What: Before this fix, slash, shield, and dash-trail visuals were already gated 
 ## The renderer's fog overlay only draws when a `viewerId` is passed to `draw()`; calls with…
 
 What: The renderer's fog overlay only draws when a `viewerId` is passed to `draw()`; calls without one (headless/debug rendering) are unaffected and render without fog · Why: preserves existing debug/smoke-test rendering paths while adding the new fog layer only for the normal player view. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-9 -->
+
+## The player HUD (10-block health bar + ability icons) lives in its own CSS-grid row `hud`…
+
+What: The player HUD (10-block health bar + ability icons) lives in its own CSS-grid row `hud` (`--hud: 112px`) directly under the `stage` cell, with side panels spanning both rows · Why: a grid row structurally guarantees the HUD can never overlap the canvas, matching the existing top/side-bar pattern · Where: index.html, src/style.css. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-0 -->
 
 ## window.arenaDebug exposes an `act(flags)` method (e.g
 
@@ -166,6 +166,6 @@ What: window.arenaDebug exposes an `act(flags)` method (e.g. `act({dash:true, sh
 
 What: In the app's CSS grid layout, the left (build list) and right (status) side panels span both the `stage` row and the `hud` row via grid row-span, rather than being duplicated per row. · Why: lets a new HUD row be inserted under the canvas without restructuring the side-panel columns — they simply stretch to cover the extra row. · Where: src/style.css (grid template, `hud` row). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-11 -->
 
-## Per-ability cooldown totals for the HUD are resolved per skill via the `resolve*` functio…
+## Per-skill cooldown time remaining (ms) lives in `PlayerState.cooldowns[skillId]`, but the…
 
-What: Per-ability cooldown totals for the HUD are resolved per skill via the `resolve*` functions in src/sim/skills/stats.ts against the player's loadout (not a flat CONFIG.skills.* constant), while the live remaining cooldown comes from `PlayerState.cooldowns[skill]` (ms left). · Why: cooldown totals vary by stat/loadout level, so the HUD must read the same resolved-stats path the sim uses rather than a static config value. · Where: src/hud.ts (skillCooldownMs), src/sim/skills/stats.ts, src/sim/player.ts (cooldowns). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-2 -->
+What: Per-skill cooldown time remaining (ms) lives in `PlayerState.cooldowns[skillId]`, but the total cooldown duration for a skill is not a static config value — it comes from the `resolve*` functions in src/sim/skills/stats.ts based on the player's current loadout · Why: — · Where: src/sim/player.ts, src/sim/skills/stats.ts, src/hud.ts (`skillCooldownMs`) · Learned: HUD cooldown fraction must combine both the live remaining-ms and the loadout-resolved total, not a fixed constant. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-4 -->

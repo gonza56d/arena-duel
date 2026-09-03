@@ -194,22 +194,10 @@ What: During a match, mouse aim and clicks anywhere on the page (not just inside
 
 What: The fog overlay is filled once as the union of all shadow wedges in a single path, not one fill per wedge · Why: filling each wedge separately would double-darken areas where two obstacles' shadows overlap. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-2 -->
 
-## Fog is drawn after the floor and before obstacles, and the lit floor/grid is brightened r…
-
-What: Fog is drawn after the floor and before obstacles, and the lit floor/grid is brightened rather than darkening obstacles, to raise fog-vs-sight contrast · Why: keeps walls bright/readable while making the fogged/visible boundary easy to read at a glance; lit floor ≈ rgb(22,51,42) vs fogged ≈ rgb(7,19,19). · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-3 -->
-
 ## The four milestone-1 playtest complaints (effects visible through fog, fog too subtle, of…
 
 What: The four milestone-1 playtest complaints (effects visible through fog, fog too subtle, off-arena clicks/aim not registering, movement/dash too slow) were split into 3 parallel work orders — this fog-occlusion-plus-contrast one, an input/aim-handling one, and a movement/dash config-tuning one — rather than one combined effort; the config one merged to master (commit f46dc69) before this branch finished · Why: the four issues were independent enough to parallelize safely. · Where: chiron board work orders; src/config.ts, src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-11 -->
 
-## The player HUD (10-block health bar + 5 ability icons: dash, slash, shot, shield, bash) w…
+## Chose to add an extra HUD grid row below the arena rather than folding footer text into t…
 
-What: The player HUD (10-block health bar + 5 ability icons: dash, slash, shot, shield, bash) was placed in a new dedicated CSS grid row `hud` directly under the `stage` (canvas) cell, at a fixed `--hud: 112px` height, rather than folding it into the existing footer row. · Why: a dedicated grid row structurally guarantees the HUD can never overlap the canvas (grid layout, not z-index/positioning discipline), matching the project's existing convention for HUD elements around the canvas; the footer-fold alternative was rejected because it risked crowding the footer's existing scale/controls text. · Where: index.html (#player-hud section), src/style.css (grid `hud` row). <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-3 -->
-
-## Adding the extra HUD grid row shrinks the canvas at the 800×600 minimum supported window…
-
-What: Adding the extra HUD grid row shrinks the canvas at the 800×600 minimum supported window size from 488px to ~376px square. · Why: accepted trade-off since keeping the canvas confined to the grid's center cell (existing convention) was preferred over overlapping/floating HUD positioning; explicitly approved by the user over the footer-fold alternative. · Where: src/style.css, verified live at forced 800×600 viewport. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-4 -->
-
-## The old right-panel `#hud` line showing raw live HP text was removed; heal countdown, SLO…
-
-What: The old right-panel `#hud` line showing raw live HP text was removed; heal countdown, SLOWED and DEAD status now render beside the new "x/10 HP" label instead. The right-panel Status block keeps only coordinates. · Why: the raw HP text became redundant once the 10-block bar + label existed, and consolidating status text next to the label avoids duplicate HP displays. · Where: index.html, src/main.ts. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-5 -->
+What: Chose to add an extra HUD grid row below the arena rather than folding footer text into the HUD row · Why: cleaner separation and the footer text stays legible; trade-off accepted is the canvas shrinking from 488px to 376px square at the 800×600 minimum supported size · Where: index.html, src/style.css. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-1 -->
