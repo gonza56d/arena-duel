@@ -1,6 +1,6 @@
 # decision
 
-A choice made and the reasoning behind it — the path taken over the alternatives.
+A technical decision that was made and WHY (which alternatives were discarded).
 
 ## A skill stat is spendable exactly when its config field is a `Levels` table; `StatId` and `leveledStatIds()` derive the set, nothing lists it by hand
 
@@ -86,6 +86,10 @@ What: `index.html`/`src/style.css` added a fourth grid row (`--hud: 112px`) with
 
 What: `filledBlocks()` in src/hud.ts lights a block while any part of its tenth of max HP is present, so a living player never shows an empty bar; HP ≤ 0 (overkill is not clamped in the sim) shows 0 blocks, `0/10 HP` and `DEAD`. With the shipped `maxHp = 10` this is exactly `hp`. · Why: the label must stay in sync with the blocks (acceptance criterion), so both are derived from the same count rather than from raw HP; ceil vs floor only matters if `maxHp` ever stops being 10. · Where: src/hud.ts (`HP_BLOCKS`, `filledBlocks`), src/hud.test.ts.
 
+## Cooldown tuning pass: every skill cooldown (the four level tables and Bash's fixed value) was halved as an exact ×0.5, README figures updated to match
+
+What: `skills.dash.cooldownMs` and `skills.shot.cooldownMs` went `[10_000, 9_000, 8_000, 7_000]` → `[5_000, 4_500, 4_000, 3_500]`, `skills.slash.cooldownMs` `[4_000, 3_500, 3_000, 2_500]` → `[2_000, 1_750, 1_500, 1_250]`, `skills.shield.cooldownMs` `[8_000, 7_000, 6_000, 5_000]` → `[4_000, 3_500, 3_000, 2_500]`, and `skills.bash.cooldownMs` 5_000 → 2_500; nothing else (movement, dash distance, damage, HP, wind-ups, active windows) moved · Why: playtesting the previous milestone found every skill sluggish to re-fire, and the work order asked for a global −50% before the next milestone; an exact ×0.5 keeps each skill's level-to-level ratios as the design doc lays them out. Bash's cooldown is a plain number rather than a `Levels` table but the intent was "all the cooldowns", so it was halved too. Fractional cooldowns would have been allowed (`validateConfig` only requires cooldowns to be positive; the integer rule covers HP/heal/damage), but every halved value happens to be an integer multiple of the 10 ms tick · Where: src/config.ts, src/config.test.ts (design-doc table plus a guard test asserting the ×0.5 relationship against the pre-cut values, mirroring the +25% mobility guard), src/sim/skills/stats.test.ts, src/sim/loadout.test.ts, README.md (cooldown levels in seconds) · Learned: the cooldown ripple was narrower than the movement one — only stats.test.ts and loadout.test.ts hard-code resolved cooldowns; the skill tests (dash/slash/shot/shield/bash) read `cfg.cooldownMs[0]` or inject their own short cooldowns, so they survive retunes untouched. The minimum cooldown (Slash L4 = 1_250 ms) is still far above any wind-up + active time, so cooldowns remain the only gate needed against mid-animation re-triggers.
+
 ## Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rend…
 
 What: Client stack chosen is Vite + vanilla TypeScript, no UI framework, canvas 2D API for rendering · Why: lightest path to a TS canvas render loop with dev server + production build; only needed devDeps were `vite` and `typescript` · Where: package.json, tsconfig.json, src/main.ts. <!-- id: a8ff3d25-28af-4269-9f4d-3d0b0b6d3636-1 -->
@@ -102,17 +106,9 @@ What: Light backend (accounts/auth) built as new Go module in `light-backend/`, 
 
 What: Bearer tokens are stateless JWTs (HS256) rather than opaque tokens stored in a `sessions` collection · Why: Simpler for v1, no extra collection needed; trade-off explicitly accepted: no server-side logout/revocation yet · Where: light-backend/internal/auth/token.go · Learned: TokenIssuer in token.go is the seam to swap for DB-stored opaque tokens if revocation is needed later <!-- id: 8be8faed-7ee8-48da-9741-541435585adf-1 -->
 
-## `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round…
+## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
 
-What: `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round seed derived from the match seed, while keeping the same two loadouts, capped at the match's best-of-N round count · Why: — · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-12 -->
-
-## A match defaults to best-of-3, and the client's left sidebar always displays both the loc…
-
-What: A match defaults to best-of-3, and the client's left sidebar always displays both the local player's and the rival's stat levels (not hidden behind debug tooling) · Why: — · Where: src/game.ts, src/main.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-13 -->
-
-## `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loa…
-
-What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loadouts — no scoring, win/loss state, or match-end detection is implemented · Why: this work order's scope was loadout generation and per-game reroll timing only, not win conditions · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-14 -->
+What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
 
 ## Per-skill stat tables from the README (Dash/Slash/Shot/Shield/Bash levels, cooldowns, tim…
 
@@ -126,13 +122,29 @@ What: The client demo spawns a second player as a stationary dummy (not networke
 
 What: Damage does not reset the heal-interval timer by default · Why: judgment call, kept trivially changeable via a `healTimerResetsOnDamage` flag in config rather than hardcoded · Where: src/config.ts player section, src/sim/player.ts tickHeal. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-5 -->
 
-## `configured_stats` is reserved on the User model as `map[string]int` (stat name → level),…
-
-What: `configured_stats` is reserved on the User model as `map[string]int` (stat name → level), `omitempty` in bson and json, and never written in v1 · Why: the PRD's 16-points-over-26-stats build is v2; reserving the field now fixes the document shape without exposing an editable surface · Where: light-backend/internal/models/user.go <!-- id: d6850825-ffb9-4edd-b6a4-f3419ad682ee-4 -->
-
 ## Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolv…
 
 What: Movement resolution in src/sim/movement.ts cancels a move entirely if it cannot be resolved without leaving the arena or overlapping an obstacle/player, rather than applying a partial/clamped move. · Why: avoids ambiguous partial-move states; simpler and predictable base for future skills (e.g. Dash) to build on. <!-- id: 9a1bb5b3-64ad-4637-9caa-418980c8239f-7 -->
+
+## `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round…
+
+What: `startNextRound()` builds a fresh world (new obstacle layout) each round via a per-round seed derived from the match seed, while keeping the same two loadouts, capped at the match's best-of-N round count · Why: — · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-12 -->
+
+## A match defaults to best-of-3, and the client's left sidebar always displays both the loc…
+
+What: A match defaults to best-of-3, and the client's left sidebar always displays both the local player's and the rival's stat levels (not hidden behind debug tooling) · Why: — · Where: src/game.ts, src/main.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-13 -->
+
+## `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loa…
+
+What: `match.ts` (`createMatch`/`startNextRound`) tracks only round count and the two fixed loadouts — no scoring, win/loss state, or match-end detection is implemented · Why: this work order's scope was loadout generation and per-game reroll timing only, not win conditions · Where: src/sim/match.ts <!-- id: 6926e2c3-7419-4ad6-b844-125c61d8128a-14 -->
+
+## The client posts match results to the backend best-effort: it reads a bearer token from l…
+
+What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
+
+## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
+
+What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
 
 ## Shield has a fixed active window `shield.activeMs = 500`, starting the skill's cooldown t…
 
@@ -162,14 +174,6 @@ What: Slash's secondary swing is bound to the right mouse button, so input.ts su
 
 What: Bash is bound to key `E`, not Ctrl · Why: Ctrl+W/S/D fire browser shortcuts mid-fight; the same hazard exists for Cmd (used for Shot) on macOS, but Alt is the safe binding of the two names the README gives · Where: src/input.ts <!-- id: e2412a3f-22b6-4699-abeb-07d261e5f0b0-3 -->
 
-## The client posts match results to the backend best-effort: it reads a bearer token from l…
-
-What: The client posts match results to the backend best-effort: it reads a bearer token from localStorage key `arena.token` and a base URL from a Vite env var (default http://localhost:8080); if no token is present it logs and skips the call rather than failing. · Why: the client has no login/session flow yet (separate work order), so persistence had to degrade gracefully instead of blocking the game. · Where: src/profile.ts, wired via onMatchOver in src/main.ts. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-6 -->
-
-## The zombie NPC's aim targets the living opponent's actual position regardless of visibili…
-
-What: The zombie NPC's aim targets the living opponent's actual position regardless of visibility — fog of war is applied only in renderer.draw() for the human's view, not as an input to NPC decision-making. · Why: requirement was fog affects what the player sees/feels, not to make the NPC deliberately exploit or respect line-of-sight in v1; the NPC needs a real target to land hits and prove combat feel. · Where: src/sim/npc.ts (decide's aim logic) vs src/renderer.ts (fog rendering). <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-8 -->
-
 ## A root Makefile was added as the single developer entry point wrapping both npm (client)…
 
 What: A root Makefile was added as the single developer entry point wrapping both npm (client) and go (backend) commands (run, test, install, docker targets) · Why: new developers previously had to learn two toolchains and stand up MongoDB by hand before anything ran · Where: Makefile <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-0 -->
@@ -190,18 +194,18 @@ What: For the milestone-1 mobility bump, movement speed and every dash-distance 
 
 What: During a match, mouse aim and clicks anywhere on the page (not just inside the arena canvas bounds) count as in-arena · Why: landed as a concurrent milestone-1 patch-follow-up fix on master (merged into this branch) so players don't lose aim when the cursor strays outside the canvas but stays inside the browser window · Where: chiron-memory/decisions.md, src/sim/world.test.ts <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-9 -->
 
-## The fog overlay is filled once as the union of all shadow wedges in a single path, not on…
-
-What: The fog overlay is filled once as the union of all shadow wedges in a single path, not one fill per wedge · Why: filling each wedge separately would double-darken areas where two obstacles' shadows overlap. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-2 -->
-
 ## The four milestone-1 playtest complaints (effects visible through fog, fog too subtle, of…
 
 What: The four milestone-1 playtest complaints (effects visible through fog, fog too subtle, off-arena clicks/aim not registering, movement/dash too slow) were split into 3 parallel work orders — this fog-occlusion-plus-contrast one, an input/aim-handling one, and a movement/dash config-tuning one — rather than one combined effort; the config one merged to master (commit f46dc69) before this branch finished · Why: the four issues were independent enough to parallelize safely. · Where: chiron board work orders; src/config.ts, src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-11 -->
+
+## The fog overlay is filled once as the union of all shadow wedges in a single path, not on…
+
+What: The fog overlay is filled once as the union of all shadow wedges in a single path, not one fill per wedge · Why: filling each wedge separately would double-darken areas where two obstacles' shadows overlap. · Where: src/renderer.ts. <!-- id: 8202c722-e583-407d-b90a-d9f614718cb7-2 -->
 
 ## Chose to add an extra HUD grid row below the arena rather than folding footer text into t…
 
 What: Chose to add an extra HUD grid row below the arena rather than folding footer text into the HUD row · Why: cleaner separation and the footer text stays legible; trade-off accepted is the canvas shrinking from 488px to 376px square at the 800×600 minimum supported size · Where: index.html, src/style.css. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-1 -->
 
-## Cooldown tuning pass: every skill cooldown (the four level tables and Bash's fixed value) was halved as an exact ×0.5, README figures updated to match
+## Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash'…
 
-What: `skills.dash.cooldownMs` and `skills.shot.cooldownMs` went `[10_000, 9_000, 8_000, 7_000]` → `[5_000, 4_500, 4_000, 3_500]`, `skills.slash.cooldownMs` `[4_000, 3_500, 3_000, 2_500]` → `[2_000, 1_750, 1_500, 1_250]`, `skills.shield.cooldownMs` `[8_000, 7_000, 6_000, 5_000]` → `[4_000, 3_500, 3_000, 2_500]`, and `skills.bash.cooldownMs` 5_000 → 2_500; nothing else (movement, dash distance, damage, HP, wind-ups, active windows) moved · Why: playtesting the previous milestone found every skill sluggish to re-fire, and the work order asked for a global −50% before the next milestone; an exact ×0.5 keeps each skill's level-to-level ratios as the design doc lays them out. Bash's cooldown is a plain number rather than a `Levels` table but the intent was "all the cooldowns", so it was halved too. Fractional cooldowns would have been allowed (`validateConfig` only requires cooldowns to be positive; the integer rule covers HP/heal/damage), but every halved value happens to be an integer multiple of the 10 ms tick · Where: src/config.ts, src/config.test.ts (design-doc table plus a guard test asserting the ×0.5 relationship against the pre-cut values, mirroring the +25% mobility guard), src/sim/skills/stats.test.ts, src/sim/loadout.test.ts, README.md (cooldown levels in seconds) · Learned: the cooldown ripple was narrower than the movement one — only stats.test.ts and loadout.test.ts hard-code resolved cooldowns; the skill tests (dash/slash/shot/shield/bash) read `cfg.cooldownMs[0]` or inject their own short cooldowns, so they survive retunes untouched. The minimum cooldown (Slash L4 = 1_250 ms) is still far above any wind-up + active time, so cooldowns remain the only gate needed against mid-animation re-triggers.
+What: Global −50% cooldown tuning pass halved the dash/slash/shot/shield level arrays and bash's scalar cooldownMs in CONFIG.skills, keeping any resulting fractional millisecond values unrounded · Why: skills felt sluggish to re-fire in playtesting, and validateConfig's no-decimals rule only applies to HP and damage, not cooldowns · Where: src/config.ts <!-- id: 6343d600-6267-4701-81fd-7f5c7c65d540-2 -->
