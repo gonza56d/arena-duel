@@ -125,6 +125,20 @@ describe("stepWorld", () => {
     expect(me.aimDir).toEqual({ x: 0, y: -1 });
   });
 
+  it("honours an aim outside the arena: same direction as an in-arena point on the same ray", () => {
+    const w = createWorld({ seed: 1 });
+    const me = w.players[0];
+    const dir = { x: -0.6, y: 0.8 };
+    // Far beyond the arena edge (negative x) vs. a point just next to the player.
+    stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: me.pos.x + dir.x * 5000, y: me.pos.y + dir.y * 5000 } } });
+    const outside = { ...me.aimDir };
+    stepWorld(w, { 0: { move: { x: 0, y: 0 }, aim: { x: me.pos.x + dir.x * 50, y: me.pos.y + dir.y * 50 } } });
+    expect(outside.x).toBeCloseTo(me.aimDir.x);
+    expect(outside.y).toBeCloseTo(me.aimDir.y);
+    expect(outside.x).toBeCloseTo(dir.x);
+    expect(outside.y).toBeCloseTo(dir.y);
+  });
+
   it("counts cooldowns down to zero and not below", () => {
     const w = createWorld({ seed: 1 });
     w.players[0].cooldowns.dash = 25;

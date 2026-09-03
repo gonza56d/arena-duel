@@ -14,6 +14,11 @@
  * `advance()` is the single code path that turns elapsed time into ticks and a
  * frame; the rAF callback and the dev tuning handle both go through it. Skill
  * triggers are one-shot: they apply to the first tick of the call only.
+ *
+ * `inputMode` says who owns the mouse: in `"gameplay"` (the default, for the
+ * whole match including the between-rounds pause) every click on the page is a
+ * skill press and the context menu is suppressed; a future menu switches to
+ * `"ui"` to get the mouse back. Only the pointer leaving the page turns aim off.
  */
 import type { ArenaViewport } from "./arena";
 import { CONFIG, type GameConfig } from "./config";
@@ -34,6 +39,9 @@ export interface InputOverride {
   skills?: SkillTriggers;
 }
 
+/** Who the mouse belongs to: the fight, or HTML UI such as a menu. */
+export type InputMode = "gameplay" | "ui";
+
 export interface Game {
   /** The game in progress; replaced by `newGame()`. */
   readonly match: Match;
@@ -42,6 +50,8 @@ export interface Game {
   viewport: ArenaViewport;
   /** Id of the player driven by this client's keyboard and mouse. */
   localPlayerId: number;
+  /** Mouse ownership; `"gameplay"` unless a menu takes it. */
+  inputMode: InputMode;
   /**
    * Consume `elapsedMs` of real time as fixed ticks (capped per call), feeding
    * the local player the live input unless `override` replaces parts of it,
@@ -76,7 +86,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let npcs: Npc[] = buildNpcs(match);
 
   const renderer: Renderer = createRenderer(canvas);
-  const input = createInput(window, canvas, renderer.viewport);
+  let inputMode: InputMode = "gameplay";
+  const input = createInput(window, canvas, renderer.viewport, { capturesMouse: () => inputMode === "gameplay" });
 
   const tickMs = config.sim.tickMs;
   const maxTicks = config.sim.maxTicksPerFrame;
@@ -109,6 +120,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function resetTransient(): void {
     accumulator = 0;
     queued = {};
+    input.consumeTriggers(); // presses made while nothing simulated must not fire at round start
     fx.length = 0;
     intermissionLeft = 0;
   }
@@ -207,6 +219,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     },
     viewport: renderer.viewport,
     localPlayerId,
+    get inputMode(): InputMode {
+      return inputMode;
+    },
+    set inputMode(mode: InputMode) {
+      inputMode = mode;
+    },
     advance,
     queue(playerId: number, playerInput: PlayerInput): void {
       const prev = queued[playerId];
