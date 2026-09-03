@@ -114,10 +114,6 @@ What: Fog of war is implemented as geometry.segmentIntersectsRect (Liang–Barsk
 
 What: The game exposes a window.arenaDebug object (world state, step(), newGame()) usable from the browser console for scripted end-to-end smoke testing of match flow, NPC behavior and fog occlusion. · Why: lets a full best-of-N match, NPC damage output, and fog behavior be verified live in-browser without manual play, beyond what unit tests cover. · Where: exposed from src/game.ts / src/main.ts wiring. <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-7 -->
 
-## `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match en…
-
-What: `POST /profile/record` (→ `IncrementRecord`) always increments `games_played` on match end but only increments `victories` when the reporting player won · Why: — · Where: light-backend/internal/handlers/profile.go, light-backend/internal/server/record_test.go <!-- id: 49b8d994-1df7-4abe-bf04-4b1b018c17fb-12 -->
-
 ## The client Dockerfile defines two build targets — `dev` (Vite dev server bound to 0.0.0.0…
 
 What: The client Dockerfile defines two build targets — `dev` (Vite dev server bound to 0.0.0.0, used by docker compose for hot reload) and `prod` (static build served by nginx, with VITE_LIGHT_BACKEND_URL passed in as a build arg since it must be baked into the bundle at build time) · Why: — · Where: Dockerfile (client) <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-11 -->
