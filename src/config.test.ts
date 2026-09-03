@@ -20,7 +20,7 @@ describe("CONFIG", () => {
   it("matches the design-doc feel numbers", () => {
     expect(CONFIG.arena.size).toBe(2100);
     expect(CONFIG.player.radius).toBe(25);
-    expect(CONFIG.player.moveSpeedUnitsPer100ms).toBe(30);
+    expect(CONFIG.player.moveSpeedUnitsPer100ms).toBe(37.5);
     expect(CONFIG.player.maxHp).toBe(10);
     expect(CONFIG.player.healAmount).toBe(1);
     expect(CONFIG.player.healIntervalMs).toBe(15_000);
@@ -31,14 +31,14 @@ describe("CONFIG", () => {
   });
 
   it("derives units/ms from the doc's units/100ms", () => {
-    expect(moveSpeedUnitsPerMs(CONFIG)).toBeCloseTo(0.3);
+    expect(moveSpeedUnitsPerMs(CONFIG)).toBeCloseTo(0.375);
     expect(moveSpeedUnitsPerMs(withPlayer({ moveSpeedUnitsPer100ms: 60 }))).toBeCloseTo(0.6);
   });
 
   it("matches the design-doc skill numbers", () => {
     const { dash, slash, shot, shield, bash } = CONFIG.skills;
     expect(dash.cooldownMs).toEqual([10_000, 9_000, 8_000, 7_000]);
-    expect(dash.distance).toEqual([100, 108, 116, 125]);
+    expect(dash.distance).toEqual([125, 135, 145, 156.25]);
     expect(dash.durationMs).toBe(100);
     expect(slash.cooldownMs).toEqual([4_000, 3_500, 3_000, 2_500]);
     expect(slash.range).toEqual([50, 59, 68, 75]);
@@ -65,6 +65,16 @@ describe("CONFIG", () => {
       coneDeg: 35,
       windupMs: 10,
     });
+  });
+
+  it("applies the milestone-1 mobility bump as a uniform +25% over the design-doc values", () => {
+    // Pre-bump design-doc numbers. Scaling every level by the same factor keeps
+    // the level-to-level progression of dash distance exactly as documented.
+    const BASE_SPEED = 30;
+    const BASE_DASH = [100, 108, 116, 125];
+    expect(CONFIG.player.moveSpeedUnitsPer100ms).toBeCloseTo(BASE_SPEED * 1.25);
+    expect(CONFIG.skills.dash.distance).toHaveLength(BASE_DASH.length);
+    CONFIG.skills.dash.distance.forEach((d, i) => expect(d).toBeCloseTo(BASE_DASH[i] * 1.25));
   });
 
   it("lets a bullet cross the whole arena by default (range ≥ diagonal)", () => {
@@ -118,7 +128,7 @@ describe("leveled stats", () => {
 
   it("resolves a stat id to its level table", () => {
     expect(statLevels("slash.damage", CONFIG)).toBe(CONFIG.skills.slash.damage);
-    expect(statLevels("dash.distance", CONFIG)).toEqual([100, 108, 116, 125]);
+    expect(statLevels("dash.distance", CONFIG)).toEqual([125, 135, 145, 156.25]);
     expect(() => statLevels("bash.damage" as StatId, CONFIG)).toThrow(/not a leveled stat/);
   });
 });

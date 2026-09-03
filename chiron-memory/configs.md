@@ -33,3 +33,11 @@ What: JWT_SECRET is the only environment value a developer needs to consider ove
 ## light-backend/go.mod requires Go 1.25 while the local toolchain may be 1.24.x; with GOTOO…
 
 What: light-backend/go.mod requires Go 1.25 while the local toolchain may be 1.24.x; with GOTOOLCHAIN=auto the first `go build`/`go test` run auto-downloads Go 1.25 · Why: — · Where: light-backend/go.mod <!-- id: 4e0e2b7a-b190-46a6-b7a1-430eb2b62463-3 -->
+
+## `make test` runs the client's vitest suite (src/) and `go test ./...` for the separate Go…
+
+What: `make test` runs the client's vitest suite (src/) and `go test ./...` for the separate Go backend service (light-backend/) — both suites must be run for full coverage, not just vitest · Why: — · Where: Makefile, light-backend/ <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-10 -->
+
+## `node_modules` is gitignored in this repo, so a fresh clone/worktree needs `npm ci` befor…
+
+What: `node_modules` is gitignored in this repo, so a fresh clone/worktree needs `npm ci` before typecheck or the TypeScript toolchain will work · Why: — · Where: repo root package.json / .gitignore <!-- id: 754c4845-39b9-4c33-a042-e3533143617f-11 -->

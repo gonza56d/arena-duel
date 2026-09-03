@@ -219,7 +219,7 @@ export const CONFIG: GameConfig = {
 
   player: {
     radius: 25,
-    moveSpeedUnitsPer100ms: 30,
+    moveSpeedUnitsPer100ms: 37.5,
     maxHp: 10,
     healAmount: 1,
     healIntervalMs: 15_000,
@@ -243,7 +243,7 @@ export const CONFIG: GameConfig = {
   skills: {
     dash: {
       cooldownMs: [10_000, 9_000, 8_000, 7_000],
-      distance: [100, 108, 116, 125],
+      distance: [125, 135, 145, 156.25],
       durationMs: 100,
     },
     slash: {

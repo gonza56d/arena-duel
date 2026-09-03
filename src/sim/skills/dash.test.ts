@@ -58,29 +58,29 @@ function assertValid(w: World): void {
 }
 
 describe("Dash", () => {
-  it("covers exactly the level's distance in exactly 100 ms, 10 units per tick", () => {
+  it("covers exactly the level's distance in exactly 100 ms, 12.5 units per tick", () => {
     const w = setup({});
     const me = w.players[0];
     stepWorld(w, { 0: dashRight });
     expect(me.dash).not.toBeNull();
-    expect(me.pos.x).toBeCloseTo(1010);
+    expect(me.pos.x).toBeCloseTo(1012.5);
     expect(me.cooldowns.dash).toBe(dash.cooldownMs[0]);
     for (let i = 1; i < 10; i++) {
       stepWorld(w, { 0: idle });
-      expect(me.pos.x).toBeCloseTo(1000 + 10 * (i + 1));
+      expect(me.pos.x).toBeCloseTo(1000 + 12.5 * (i + 1));
     }
-    expect(me.pos).toEqual({ x: 1100, y: 1000 });
+    expect(me.pos).toEqual({ x: 1125, y: 1000 });
     expect(me.dash).toBeNull();
-    // Normal walking resumes at 3 units per tick.
+    // Normal walking resumes at 3.75 units per tick.
     stepWorld(w, { 0: { move: { x: 1, y: 0 } } });
-    expect(me.pos.x).toBeCloseTo(1103);
+    expect(me.pos.x).toBeCloseTo(1128.75);
   });
 
   it("goes in the direction the player is moving, normalised", () => {
     const w = setup({});
     doDash(w, { move: { x: 1, y: 1 }, skills: { dash: true } });
     const me = w.players[0];
-    expect(distance(me.pos, { x: 1000, y: 1000 })).toBeCloseTo(100);
+    expect(distance(me.pos, { x: 1000, y: 1000 })).toBeCloseTo(125);
     expect(me.pos.x - 1000).toBeCloseTo(me.pos.y - 1000);
   });
 
@@ -90,14 +90,14 @@ describe("Dash", () => {
     stepWorld(w, { 0: idle });
     doDash(w, { move: { x: 0, y: 0 }, skills: { dash: true } });
     expect(w.players[0].pos.x).toBeCloseTo(1000);
-    expect(w.players[0].pos.y).toBeCloseTo(1000 - 3 - 100);
+    expect(w.players[0].pos.y).toBeCloseTo(1000 - 3.75 - 125);
     expect(w.players[0].lastMoveDir).toEqual({ x: 0, y: -1 });
   });
 
   it("ignores movement input while dashing", () => {
     const w = setup({});
     doDash(w, dashRight, { move: { x: 0, y: -1 } });
-    expect(w.players[0].pos).toEqual({ x: 1100, y: 1000 });
+    expect(w.players[0].pos).toEqual({ x: 1125, y: 1000 });
   });
 
   it("takes the same 100 ms whatever the distance level", () => {
@@ -122,11 +122,11 @@ describe("Dash", () => {
     const me = w.players[0];
     stepWorld(w, { 0: dashRight });
     for (let i = 0; i < 20; i++) stepWorld(w, { 0: dashRight }); // spam through the dash and the cooldown
-    expect(me.pos.x).toBeCloseTo(1100 + 11 * 3); // one dash, then walking
+    expect(me.pos.x).toBeCloseTo(1125 + 11 * 3.75); // one dash, then walking
     for (let i = 0; i < 10; i++) stepWorld(w, { 0: idle });
     expect(me.cooldowns.dash).toBe(0);
     doDash(w);
-    expect(me.pos.x).toBeCloseTo(1100 + 33 + 100);
+    expect(me.pos.x).toBeCloseTo(1125 + 41.25 + 125);
   });
 
   it("stops flush against the arena edge", () => {
@@ -154,27 +154,27 @@ describe("Dash", () => {
   });
 
   it("lands just behind an enemy it dashes over when the dash distance exceeds their distance", () => {
-    const w = setup({ rival: { x: 1060, y: 1000 } });
+    const w = setup({ rival: { x: 1085, y: 1000 } });
     doDash(w);
     const [me, rival] = w.players;
-    expect(me.pos.x).toBeCloseTo(1060 + 2 * R, 4); // touching the enemy's far side
+    expect(me.pos.x).toBeCloseTo(1085 + 2 * R, 4); // touching the enemy's far side
     expect(me.pos.x).toBeGreaterThan(rival.pos.x);
-    expect(rival.pos).toEqual({ x: 1060, y: 1000 }); // the enemy is passed over, not shoved
+    expect(rival.pos).toEqual({ x: 1085, y: 1000 }); // the enemy is passed over, not shoved
     assertValid(w);
   });
 
   it("passes over an enemy and lands at full distance when that spot is already clear", () => {
-    const w = setup({ rival: { x: 1050, y: 1000 } }); // touching; exit point is exactly 100 away
+    const w = setup({ rival: { x: 1075, y: 1000 } }); // 75 ahead; the exit point behind them (1125) is exactly the dash distance
     doDash(w);
-    expect(w.players[0].pos.x).toBeCloseTo(1100, 4);
+    expect(w.players[0].pos.x).toBeCloseTo(1125, 4);
     assertValid(w);
   });
 
   it("lands in front of an enemy when the dash distance does not exceed their distance", () => {
-    const w = setup({ rival: { x: 1120, y: 1000 } });
+    const w = setup({ rival: { x: 1145, y: 1000 } });
     doDash(w);
     const [me, rival] = w.players;
-    expect(me.pos.x).toBeCloseTo(1120 - 2 * R, 4);
+    expect(me.pos.x).toBeCloseTo(1145 - 2 * R, 4);
     expect(me.pos.x).toBeLessThan(rival.pos.x);
     assertValid(w);
   });
@@ -194,10 +194,10 @@ describe("Dash", () => {
   });
 
   it("goes over an enemy whose far side is clear even if an obstacle lies further along", () => {
-    // Enemy at 60; wall starts at 1200 so the landing behind (1110) is fine.
-    const w = setup({ rival: { x: 1060, y: 1000 }, obstacles: [{ x: 1200, y: 800, w: 100, h: 400 }] });
+    // Enemy at 85; wall starts at 1200 so the landing behind (1135) is fine.
+    const w = setup({ rival: { x: 1085, y: 1000 }, obstacles: [{ x: 1200, y: 800, w: 100, h: 400 }] });
     doDash(w);
-    expect(w.players[0].pos.x).toBeCloseTo(1110, 4);
+    expect(w.players[0].pos.x).toBeCloseTo(1135, 4);
     assertValid(w);
   });
 

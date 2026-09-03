@@ -22,18 +22,18 @@ function run(p: ReturnType<typeof createPlayer>, input: { x: number; y: number }
 }
 
 describe("movement speed", () => {
-  it("covers 30 units per 100 ms with the default config", () => {
-    expect(moveDistance(100)).toBeCloseTo(30);
+  it("covers 37.5 units per 100 ms with the default config", () => {
+    expect(moveDistance(100)).toBeCloseTo(37.5);
   });
 
-  it("moves 30 units in 100 ms along +x", () => {
+  it("moves 37.5 units in 100 ms along +x", () => {
     const p = createPlayer(0, { x: 1000, y: 1000 }, LOADOUT);
     run(p, { x: 1, y: 0 }, 100);
-    expect(p.pos.x).toBeCloseTo(1030);
+    expect(p.pos.x).toBeCloseTo(1037.5);
     expect(p.pos.y).toBeCloseTo(1000);
   });
 
-  it("moves 30 units in 100 ms along any direction (diagonals are not faster)", () => {
+  it("moves 37.5 units in 100 ms along any direction (diagonals are not faster)", () => {
     for (const input of [
       { x: 1, y: 1 },
       { x: -1, y: 1 },
@@ -43,7 +43,7 @@ describe("movement speed", () => {
     ]) {
       const p = createPlayer(0, { x: 1000, y: 1000 }, LOADOUT);
       run(p, input, 100);
-      expect(distance(p.pos, { x: 1000, y: 1000 })).toBeCloseTo(30);
+      expect(distance(p.pos, { x: 1000, y: 1000 })).toBeCloseTo(37.5);
     }
   });
 
@@ -64,7 +64,7 @@ describe("movement speed", () => {
     const p = createPlayer(0, { x: 1000, y: 1000 }, LOADOUT);
     applySlow(p, 5000, 0.5);
     run(p, { x: 1, y: 0 }, 100);
-    expect(p.pos.x).toBeCloseTo(1015);
+    expect(p.pos.x).toBeCloseTo(1018.75);
   });
 
   it("changing only the config speed changes the distance travelled", () => {

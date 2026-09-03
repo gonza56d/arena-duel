@@ -103,7 +103,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 #### Dash
 
 - Cooldown: How much time the skill takes to refresh. *Levels [10, 9, 8, 7]*.
-- Distance: Allows the player to dash from 100 to 125 units. *Levels [100, 108, 116, 125]*.
+- Distance: Allows the player to dash from 125 to 156.25 units. *Levels [125, 135, 145, 156.25]*.
 * Dash cannot cross obstacles.
 * Dash speed is set to take 100ms, regardless of the distance stat.
 * The hability is used with left shift key and the dash is done in the direction that the player is moving. If the player is not moving, the dash will be executed towards the last direction the player has move. If there is any obstacle or edge of the map in the way, the dash will move the player until they collide against the obstacle. Dash can go over other players, putting the player that did the dash after the enemy player if when calculated the dash the unit was greater than the distance between the two players, or in front of them otherwise. If there's any obstacle or map edge behind the enemy player when dashing through him, the player that dashes travels to the front of the player instead of going over them.
@@ -153,7 +153,7 @@ Each skill has their own stats. There is one stat that every skill has, which is
 #### More about game mechanics.
 
 * Any skill can be used during movement.
-* Movement speed is set to 30 units per 100ms.
+* Movement speed is set to 37.5 units per 100ms.
 * Movement is 2d in any direction.
 * Players' collision will be calculated as circles, even though we could end up working on sprites later, so it's fine if they start as colored circles. The circle of each player is set to 25 units radius.
 * Players' health is set to 10. The health is always an integer, and any ability that does damage must always be set to an integer number so it does x/10 damage without resulting on a decimal number.
