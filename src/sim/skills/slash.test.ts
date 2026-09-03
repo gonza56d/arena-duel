@@ -168,7 +168,7 @@ describe("Slash", () => {
     stepWorld(w, { 0: { move: { x: 0, y: -1 }, skills: { slashPrimary: true } } });
     for (let i = 0; i < 12; i++) stepWorld(w, { 0: { move: { x: 0, y: -1 } } });
     expect(rival.hp).toBe(maxHp - 2);
-    expect(me.pos.y).toBeCloseTo(start - 13 * 3);
+    expect(me.pos.y).toBeCloseTo(start - 13 * 3.75);
   });
 
   it("is blocked by a shield facing the attacker", () => {

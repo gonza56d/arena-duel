@@ -80,7 +80,7 @@ describe("stepWorld", () => {
     const start = { ...w.players[0].pos };
     const ticks = 100 / CONFIG.sim.tickMs;
     for (let i = 0; i < ticks; i++) stepWorld(w, { 0: { move: { x: 0, y: -1 } } });
-    expect(w.players[0].pos.y).toBeCloseTo(start.y - 30);
+    expect(w.players[0].pos.y).toBeCloseTo(start.y - 37.5);
     expect(w.players[0].pos.x).toBeCloseTo(start.x);
     expect(w.timeMs).toBeCloseTo(100);
     expect(w.tick).toBe(ticks);

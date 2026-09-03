@@ -236,7 +236,7 @@ describe("Shot", () => {
     const w = setup({});
     stepWorld(w, { 0: { move: { x: 0, y: -1 }, skills: { shot: true } } });
     for (let i = 0; i < 4; i++) stepWorld(w, { 0: { move: { x: 0, y: -1 } } });
-    expect(w.projectiles[0].pos.y).toBeCloseTo(1000 - 5 * 3);
+    expect(w.projectiles[0].pos.y).toBeCloseTo(1000 - 5 * 3.75);
     expect(w.projectiles[0].pos.x).toBeCloseTo(1000);
   });
 

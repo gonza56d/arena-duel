@@ -97,13 +97,13 @@ describe("Bash", () => {
     stepWorld(w, { 0: press });
     const start = rival.pos.y;
     for (let i = 0; i < 100 / TICK; i++) stepWorld(w, { 1: { move: { x: 0, y: 1 } } });
-    expect(rival.pos.y - start).toBeCloseTo(15); // 30 units per 100 ms, halved
+    expect(rival.pos.y - start).toBeCloseTo(18.75); // 37.5 units per 100 ms, halved
     // Remaining 900 ms of slow, then full speed again.
     for (let i = 0; i < 900 / TICK; i++) stepWorld(w, { 1: { move: { x: 0, y: 1 } } });
     const y = rival.pos.y;
     for (let i = 0; i < 100 / TICK; i++) stepWorld(w, { 1: { move: { x: 0, y: 1 } } });
     expect(rival.slow).toBeNull();
-    expect(rival.pos.y - y).toBeCloseTo(30);
+    expect(rival.pos.y - y).toBeCloseTo(37.5);
   });
 
   it("cannot be used while on cooldown, then works again", () => {

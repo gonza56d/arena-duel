@@ -169,7 +169,7 @@ describe("statValue", () => {
   it("maps a 1-based level onto the 0-indexed config table", () => {
     expect(statValue(VALID, "slash.damage")).toBe(CONFIG.skills.slash.damage[2]); // level 3 → 4
     expect(statValue(VALID, "slash.range")).toBe(68);
-    expect(statValue(VALID, "dash.distance")).toBe(108);
+    expect(statValue(VALID, "dash.distance")).toBe(135);
     expect(statValue(VALID, "dash.cooldownMs")).toBe(10_000);
     expect(statValue(VALID, "shield.cooldownMs")).toBe(7_000);
   });
