@@ -20,16 +20,21 @@ type profileResponse struct {
 	Color       string `json:"color"`
 	Victories   int    `json:"victories"`
 	GamesPlayed int    `json:"games_played"`
+	// ConfiguredStats is the v2 stat build (stat id → 1-based level), written
+	// only through PUT /profile/build. Omitted while unset, preserving the v1
+	// response shape for users without a build.
+	ConfiguredStats map[string]int `json:"configured_stats,omitempty"`
 }
 
 func toProfile(u *models.User) profileResponse {
 	return profileResponse{
-		ID:          u.ID.Hex(),
-		Email:       u.Email,
-		PlayerName:  u.PlayerName,
-		Color:       u.Color,
-		Victories:   u.Victories,
-		GamesPlayed: u.GamesPlayed,
+		ID:              u.ID.Hex(),
+		Email:           u.Email,
+		PlayerName:      u.PlayerName,
+		Color:           u.Color,
+		Victories:       u.Victories,
+		GamesPlayed:     u.GamesPlayed,
+		ConfiguredStats: u.ConfiguredStats,
 	}
 }
 

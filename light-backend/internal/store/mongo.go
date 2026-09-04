@@ -147,6 +147,29 @@ func (s *MongoStore) UpdateProfile(ctx context.Context, id string, upd ProfileUp
 	return &u, nil
 }
 
+// SetConfiguredStats replaces the stat build with one atomic $set and returns
+// the document as it is after the update.
+func (s *MongoStore) SetConfiguredStats(ctx context.Context, id string, stats map[string]int) (*models.User, error) {
+	oid, err := primitiveObjectID(id)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+
+	var u models.User
+	err = s.users.FindOneAndUpdate(ctx,
+		bson.M{"_id": oid},
+		bson.M{"$set": bson.M{"configured_stats": stats, "updated_at": time.Now().UTC()}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&u)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
 // IncrementRecord atomically bumps games_played (and victories when won).
 func (s *MongoStore) IncrementRecord(ctx context.Context, id string, won bool) error {
 	oid, err := primitiveObjectID(id)

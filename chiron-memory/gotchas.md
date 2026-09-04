@@ -125,3 +125,7 @@ What: `shadowPolygons`'s wedge vertices must be ordered consistently relative to
 ## `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame
 
 What: `window.arenaDebug.step(0)` advances zero simulation ticks and runs no frame · Why: — · Where: src/game.ts (arenaDebug), used during browser verification of src/hud.ts · Learned: pass a positive ms value when driving sim state for manual/HUD verification, not 0. <!-- id: c0468463-20e6-4d0d-af7e-dabbc91f90ae-6 -->
+
+## Backend stat catalog in build.go drifts silently if src/config.ts level tables change
+
+What: `statMaxLevels` and `BuildPoints` in light-backend/internal/validate/build.go are a hand-copied mirror of the `Levels` tables and `build.points` in src/config.ts; nothing checks they agree · Why: separate Go/TS toolchains with no shared contract artifact in v2 · Where: light-backend/internal/validate/build.go ↔ src/config.ts · Learned: any edit to a skill's level table (adding a level, promoting a fixed value to a table, changing `build.points`) must update build.go in the same change, or the backend will reject builds the frontend considers valid (or accept invalid ones).

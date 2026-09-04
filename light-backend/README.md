@@ -15,8 +15,10 @@ Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
 | POST   | `/auth/signup` | –         | Register with `email` + `password`.          |
 | POST   | `/auth/login`  | –         | Verify credentials, return a bearer token.   |
 | GET    | `/me`          | Bearer    | Return the authenticated user document.      |
-| GET    | `/profile`     | Bearer    | Player profile: name, color, record.         |
+| GET    | `/profile`     | Bearer    | Player profile: name, color, record, build.  |
 | PATCH  | `/profile`     | Bearer    | Update `player_name` and/or `color`.         |
+| PUT    | `/profile/build` | Bearer  | Replace the stat build (`configured_stats`). |
+| POST   | `/profile/record` | Bearer | Record a finished match (`{"won": bool}`).   |
 
 ### Rules
 
@@ -35,9 +37,16 @@ Stack: **Go + Gin**, **MongoDB** (official driver), **bcrypt** password hashing,
   and returned as lowercase `#rrggbb`. New accounts start with `#ffffff`.
 - **Victories / games played are server-owned.** `PATCH /profile` binds only
   `player_name` and `color`; any other key is ignored. The counters change only
-  through `UserStore.IncrementRecord`, which has no HTTP endpoint (a client
-  must not be able to record its own wins). `configured_stats` is reserved on
-  the model for v2 and is not editable.
+  through `UserStore.IncrementRecord` via `POST /profile/record`, which bumps
+  them by at most one game per call (a client cannot set arbitrary values).
+- **Stat build (v2).** `PUT /profile/build` replaces `configured_stats` (stat
+  id → 1-based level) as a whole. The build is validated server-side against
+  the catalog mirrored from `src/config.ts` (see `internal/validate/build.go`):
+  every leveled stat present, each level within `[1, its max]`, no unknown
+  stats, and exactly 16 points spent (spend = sum of levels). An invalid build
+  gets `400` with every violation in `details` and nothing is written. A user
+  who never saved a build has no `configured_stats` key in responses (v1
+  shape preserved).
 
 ## Configuration
 

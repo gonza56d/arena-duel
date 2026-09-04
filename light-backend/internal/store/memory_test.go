@@ -54,6 +54,46 @@ func TestUpdateProfilePartial(t *testing.T) {
 	}
 }
 
+func TestSetConfiguredStats(t *testing.T) {
+	s := NewMemoryStore()
+	u := seed(t, s)
+	ctx := context.Background()
+
+	// A fresh user has no build.
+	if fresh, _ := s.FindByID(ctx, u.ID.Hex()); len(fresh.ConfiguredStats) != 0 {
+		t.Fatalf("fresh user has a build: %v", fresh.ConfiguredStats)
+	}
+
+	build := map[string]int{"dash.cooldownMs": 2, "slash.damage": 3}
+	got, err := s.SetConfiguredStats(ctx, u.ID.Hex(), build)
+	if err != nil {
+		t.Fatalf("set build: %v", err)
+	}
+	if got.ConfiguredStats["slash.damage"] != 3 {
+		t.Fatalf("returned build = %v", got.ConfiguredStats)
+	}
+
+	// Persisted, and detached from the caller's map.
+	build["slash.damage"] = 99
+	again, _ := s.FindByID(ctx, u.ID.Hex())
+	if again.ConfiguredStats["slash.damage"] != 3 || again.ConfiguredStats["dash.cooldownMs"] != 2 {
+		t.Fatalf("not persisted (or shares caller's map): %v", again.ConfiguredStats)
+	}
+
+	// A later set replaces the whole build.
+	if _, err := s.SetConfiguredStats(ctx, u.ID.Hex(), map[string]int{"shot.damage": 1}); err != nil {
+		t.Fatal(err)
+	}
+	again, _ = s.FindByID(ctx, u.ID.Hex())
+	if len(again.ConfiguredStats) != 1 || again.ConfiguredStats["shot.damage"] != 1 {
+		t.Fatalf("set did not replace: %v", again.ConfiguredStats)
+	}
+
+	if _, err := s.SetConfiguredStats(ctx, "missing", build); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing user: got %v, want ErrNotFound", err)
+	}
+}
+
 func TestIncrementRecord(t *testing.T) {
 	s := NewMemoryStore()
 	u := seed(t, s)

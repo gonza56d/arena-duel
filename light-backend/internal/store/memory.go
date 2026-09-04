@@ -99,6 +99,26 @@ func (s *MemoryStore) UpdateProfile(ctx context.Context, id string, upd ProfileU
 	return &cp, nil
 }
 
+func (s *MemoryStore) SetConfiguredStats(ctx context.Context, id string, stats map[string]int) (*models.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	u, ok := s.byID[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	// Store a copy so later caller-side mutation cannot reach the stored build.
+	cpStats := make(map[string]int, len(stats))
+	for k, v := range stats {
+		cpStats[k] = v
+	}
+	u.ConfiguredStats = cpStats
+	u.UpdatedAt = time.Now().UTC()
+
+	cp := *u
+	return &cp, nil
+}
+
 func (s *MemoryStore) IncrementRecord(ctx context.Context, id string, won bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

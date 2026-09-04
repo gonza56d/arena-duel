@@ -49,4 +49,9 @@ type UserStore interface {
 	// IncrementRecord records a finished match: games_played += 1 and, when won
 	// is true, victories += 1. This is the only way the record counters change.
 	IncrementRecord(ctx context.Context, id string, won bool) error
+	// SetConfiguredStats replaces the player's stat build in a single write and
+	// returns the updated user. The build is expected to be already validated
+	// (validate.ConfiguredStats). It returns ErrNotFound when the id matches no
+	// user.
+	SetConfiguredStats(ctx context.Context, id string, stats map[string]int) (*models.User, error)
 }
